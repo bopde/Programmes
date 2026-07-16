@@ -110,6 +110,11 @@ tr.fc-line>td{background:var(--surface-2)}
 .ev.done{color:var(--good)}
 .fc-caret{width:16px;display:inline-grid;place-items:center;color:var(--ink-3);cursor:pointer;border-radius:4px;font-size:10px}
 .fc-caret:hover{background:var(--sel);color:var(--ink)}
+.dragh{cursor:grab;color:var(--ink-3);padding:0 4px;user-select:none;font-size:13px;flex:none}
+.dragh:active{cursor:grabbing}
+.drop-above{box-shadow:inset 0 3px 0 var(--accent)!important}
+.drop-below{box-shadow:inset 0 -3px 0 var(--accent)!important}
+.fc-addrow td{padding:4px 10px;background:var(--surface-2)}
 
 /* ---------- chips & pills ---------- */
 .chip{display:inline-flex;align-items:center;gap:4px;background:var(--sel);border:1px solid var(--line);color:var(--ink);border-radius:99px;padding:1px 9px;font-size:12px;cursor:pointer;text-decoration:none;white-space:nowrap;vertical-align:middle}
@@ -313,7 +318,8 @@ function defaultState(name){return {
   pos:[],        // {id,poNumber,contractId ('' = standalone),supplier,description,archived}
   poLines:[],    // {id,poId,lineNo,wbs,spendCode,glCode,value,description,archived}
   invoices:[],   // {id,poLineId,invoiceNumber,value,date,forWhat,notes}
-  budget:[],     // {id,what,where,supplier,contractId,poId,poLineId,orig (manual when unlinked),endDate,notes,archived}
+  budget:[],     // legacy manual budget lines (shown read-only on Overview)
+  fcLines:[],    // forecast lines {id,parentRef ('contract:x'|'po:x'),poId,poLineId,forWhat}
   forecast:{},   // '<type>:<id>|<period>' -> {mode:'val'|'pct', v:number}
   fcCfg:{gran:'month',start:currentMonthKey(),count:12},
   events:[],     // {id,title,date,endDate,time,tagIds:[],notes,links:[]}
@@ -323,7 +329,8 @@ function defaultState(name){return {
   structViews:[],// saved contract-page views {id,name,filter,mode}
   fcViews:[],    // saved forecast views {id,name,gran,start,count,filter}
   ui:{budgetTab:'lines',calMode:'month',calDate:todayStr(),view:'full',hideDone:false,
-      budgetArch:'hide',structView:'active',structFilter:'',fcFilter:'',fcView:'',fcOpen:{}},
+      budgetArch:'hide',structView:'active',structFilter:'',fcFilter:'',fcView:'',fcOpen:{},
+      structCollapsed:{},poCollapsed:{}},
 };}
 function currentMonthKey(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
 
@@ -375,8 +382,25 @@ function migrate(d){ const def=defaultState('x');
       if(nf[nk]&&nf[nk].mode===v.mode) nf[nk]={mode:v.mode,v:nf[nk].v+v.v}; else nf[nk]=v; });
     d.forecast=nf; d.v=2;
   }
+  if(d.v<3){ // v2 → v3: PO-line forecasts become named forecast lines under their contract/PO
+    d.fcLines=d.fcLines||[];
+    const map={};
+    Object.entries(d.forecast||{}).forEach(([k,v])=>{ const [ref,p]=k.split('|');
+      if(!ref.startsWith('poline:')) return;
+      const lid=ref.slice(7);
+      if(!map[lid]){ const l=(d.poLines||[]).find(x=>x.id===lid); if(!l){ delete d.forecast[k]; return; }
+        const po=(d.pos||[]).find(x=>x.id===l.poId);
+        const parentRef=po&&po.contractId?('contract:'+po.contractId):('po:'+(po?po.id:''));
+        const f={id:uid(),parentRef,poId:l.poId,poLineId:lid,forWhat:''};
+        d.fcLines.push(f); map[lid]=f.id; }
+      d.forecast['fcline:'+map[lid]+'|'+p]=v; delete d.forecast[k];
+    });
+    d.v=3;
+  }
   (d.contracts||[]).forEach(c=>{ if(!c.variations) c.variations=[]; });
   if(!d.ui.fcOpen) d.ui.fcOpen={};
+  if(!d.ui.structCollapsed) d.ui.structCollapsed={};
+  if(!d.ui.poCollapsed) d.ui.poCollapsed={};
   return d;
 }
 function importState(obj){
@@ -540,6 +564,7 @@ function handleBind(el){
       if(parts[2]==='contractId'){ item.poId=''; item.poLineId=''; }
       if(parts[2]==='poId'){ item.poLineId=''; }
     }
+    if(parts[0]==='fcLines'&&parts[2]==='poId') item.poLineId='';
   }
   save();
   const norerender=el.dataset.norerender;
@@ -558,6 +583,104 @@ function renderKeepFocus(){
       if(el){ el.focus(); try{ if(selS!=null&&el.setSelectionRange) el.setSelectionRange(selS,selE); }catch(e){} } }
   },0);
 }
+/* ---- drag & drop reordering (contracts, POs, PO lines, forecast lines) ---- */
+let DRAG=null;
+function sameDragGroup(coll,aId,bId){
+  if(coll==='contracts') return true;
+  if(coll==='pos') return ((poOf(aId)||{}).contractId||'')===((poOf(bId)||{}).contractId||'');
+  if(coll==='poLines') return (lineOf(aId)||{}).poId===(lineOf(bId)||{}).poId;
+  if(coll==='fcLines') return (byId(S.fcLines,aId)||{}).parentRef===(byId(S.fcLines,bId)||{}).parentRef;
+  return false;
+}
+function reorderIn(arr,dragId,targetId,before){
+  const di=arr.findIndex(x=>x.id===dragId); if(di<0) return;
+  const [item]=arr.splice(di,1);
+  let ti=arr.findIndex(x=>x.id===targetId); if(ti<0){ arr.splice(di,0,item); return; }
+  arr.splice(before?ti:ti+1,0,item);
+}
+document.addEventListener('dragstart',e=>{ const h=e.target.closest&&e.target.closest('[data-drag]');
+  if(!h) return; DRAG=h.dataset.drag; e.dataTransfer.setData('text/plain',DRAG); e.dataTransfer.effectAllowed='move'; });
+document.addEventListener('dragover',e=>{ if(!DRAG) return;
+  const t=e.target.closest&&e.target.closest('[data-drop]'); if(!t) return;
+  const [c,id]=DRAG.split(':'), [tc,tid]=t.dataset.drop.split(':');
+  if(c!==tc||id===tid||!sameDragGroup(c,id,tid)) return;
+  e.preventDefault(); e.dataTransfer.dropEffect='move';
+  const rect=t.getBoundingClientRect(); const before=e.clientY<rect.top+rect.height/2;
+  t.classList.toggle('drop-above',before); t.classList.toggle('drop-below',!before);
+});
+document.addEventListener('dragleave',e=>{ const t=e.target.closest&&e.target.closest('[data-drop]');
+  if(t){ t.classList.remove('drop-above','drop-below'); } });
+document.addEventListener('drop',e=>{ if(!DRAG) return;
+  const t=e.target.closest&&e.target.closest('[data-drop]'); if(!t){ DRAG=null; return; }
+  t.classList.remove('drop-above','drop-below');
+  const [c,id]=DRAG.split(':'), [tc,tid]=t.dataset.drop.split(':'); DRAG=null;
+  if(c!==tc||id===tid||!sameDragGroup(c,id,tid)) return;
+  e.preventDefault();
+  const rect=t.getBoundingClientRect(); const before=e.clientY<rect.top+rect.height/2;
+  reorderIn(S[c],id,tid,before); save(); render();
+});
+document.addEventListener('dragend',()=>{ DRAG=null; $$('.drop-above,.drop-below').forEach(el=>el.classList.remove('drop-above','drop-below')); });
+
+/* ---- Enter = move down the column (Excel-style); works in any data table ---- */
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Enter'||e.shiftKey||e.ctrlKey||e.metaKey) return;
+  const el=e.target;
+  if(!el||el.tagName==='SELECT') return;
+  const table=el.closest&&el.closest('table.tbl'); if(!table) return;
+  if(el.dataset.fc){ e.preventDefault();
+    const period=el.dataset.fc.split('|')[1];
+    const all=[...table.querySelectorAll('input[data-fc]')].filter(i=>i.dataset.fc.split('|')[1]===period);
+    const i=all.indexOf(el); if(i>=0&&all[i+1]){ all[i+1].focus(); try{all[i+1].select();}catch(_){} }
+    return; }
+  if(el.dataset.bind){ e.preventDefault();
+    const parts=el.dataset.bind.split('.'); const coll=parts[0], field=parts[parts.length-1];
+    const all=[...table.querySelectorAll(`[data-bind^="${coll}."]`)].filter(i=>i.dataset.bind.endsWith('.'+field));
+    const i=all.indexOf(el); if(i>=0&&all[i+1]){ all[i+1].focus(); try{all[i+1].select();}catch(_){} }
+    return; }
+});
+
+/* ---- copy / paste a whole PO line ---- */
+let LINE_CLIP=null;
+const LINE_FIELDS=['lineNo','description','wbs','spendCode','glCode','value'];
+ACTIONS.copyLine=t=>{ const l=lineOf(t.dataset.id); if(!l) return;
+  LINE_CLIP=LINE_FIELDS.map(k=>l[k]??'');
+  try{ navigator.clipboard.writeText(LINE_CLIP.join('\t')); }catch(_){}
+  save(); render(); toast('Line copied — use 📋 on another line, or Ctrl-V in a cell');
+};
+ACTIONS.pasteLine=t=>{ const l=lineOf(t.dataset.id); if(!l||!LINE_CLIP) return;
+  LINE_FIELDS.forEach((k,i)=>{ if(i===0) return; // keep the target's own line number
+    l[k]=k==='value'?parseNum(LINE_CLIP[i]):String(LINE_CLIP[i]??''); });
+  save(); render(); toast('Line values pasted');
+};
+document.addEventListener('paste',e=>{
+  const el=e.target; if(!el||!el.dataset) return;
+  const text=(e.clipboardData||window.clipboardData).getData('text');
+  if(!text||(!text.includes('\t')&&!text.includes('\n'))) return; // single values paste normally
+  const vals=text.replace(/\r/g,'').split(/[\t\n]/).map(v=>v.trim()).filter((v,i,a)=>!(v===''&&i===a.length-1));
+  if(el.dataset.bind&&el.dataset.bind.startsWith('poLines.')){ // fill across the PO line row
+    e.preventDefault();
+    const [,id,field]=el.dataset.bind.split('.');
+    const l=lineOf(id); if(!l) return;
+    let idx=LINE_FIELDS.indexOf(field); if(idx<0) return;
+    vals.forEach(v=>{ if(idx<LINE_FIELDS.length){ const k=LINE_FIELDS[idx];
+      l[k]=k==='value'?parseNum(v):v; idx++; } });
+    save(); render(); toast('Pasted across the line');
+    return;
+  }
+  if(el.dataset.fc){ // fill across consecutive forecast periods
+    e.preventDefault();
+    const [ref,startKey]=el.dataset.fc.split('|');
+    const ps=periodList(); let i=ps.findIndex(p=>p.key===startKey); if(i<0) return;
+    vals.forEach(v=>{ if(i<ps.length){ const key=ref+'|'+ps[i].key;
+      if(!v) delete S.forecast[key];
+      else if(v.endsWith('%')) S.forecast[key]={mode:'pct',v:parseNum(v)};
+      else S.forecast[key]={mode:'val',v:parseNum(v)};
+      i++; } });
+    save(); render(); toast('Pasted across '+Math.min(vals.length,ps.length)+' periods');
+    return;
+  }
+});
+
 ACTIONS.closeModal=()=>closeModal();
 ACTIONS.openKey=t=>openKey(t.dataset.key);
 ACTIONS.lpPick=t=>{ const cb=lpCallback; lpCallback=null; closeModal(); if(cb) cb(t.dataset.ref); };
@@ -618,7 +741,7 @@ function renderBudget(v){
   const sub=S.ui.budgetTab||'lines';
   v.innerHTML=`<div class="toolbar">
     <div class="subtabs">
-      <button data-act="budgetSub" data-sub="lines" class="${sub==='lines'?'on':''}">Budget lines</button>
+      <button data-act="budgetSub" data-sub="lines" class="${sub==='lines'?'on':''}">Overview</button>
       <button data-act="budgetSub" data-sub="structure" class="${sub==='structure'?'on':''}">Contracts · POs · Lines</button>
       <button data-act="budgetSub" data-sub="forecast" class="${sub==='forecast'?'on':''}">Forecast &amp; phasing</button>
     </div><div class="sp"></div><div id="budget-tools"></div></div><div id="budget-body"></div>`;
@@ -628,7 +751,34 @@ function renderBudget(v){
 }
 ACTIONS.budgetSub=t=>{ S.ui.budgetTab=t.dataset.sub; save(); render(); };
 
-/* ----- budget lines table ----- */
+/* ----- overview: read-only summary, one row per contract / standalone PO ----- */
+function overviewRows(){
+  const rows=[];
+  S.contracts.forEach(c=>{
+    const poList=posOfContract(c.id);
+    rows.push({ref:'contract:'+c.id,kind:'Contract',archived:!!c.archived,
+      what:c.what||'',where:c.where||'',supplier:c.supplier||'',contractNo:c.contractNumber||'',
+      poNo:poList.map(p=>p.poNumber).filter(Boolean).join(', '),
+      lineCount:poList.reduce((s,p)=>s+linesOfPO(p.id).length,0),
+      orig:parseNum(c.totalValue),vars:contractVarsSum(c),current:contractCurrent(c),
+      endDate:c.endDate||'',actuals:contractActuals(c.id),notes:c.notes||''});
+  });
+  standalonePOs().forEach(p=>{
+    rows.push({ref:'po:'+p.id,kind:'Standalone PO',archived:!!p.archived,
+      what:p.description||'',where:p.where||'',supplier:p.supplier||'',contractNo:'',
+      poNo:p.poNumber||'',lineCount:linesOfPO(p.id).length,
+      orig:poLinesSum(p.id),vars:0,current:poLinesSum(p.id),
+      endDate:'',actuals:poActuals(p.id),notes:''});
+  });
+  S.budget.forEach(r=>{ const d=rowCalc(r); // legacy manual lines
+    rows.push({ref:'budget:'+r.id,kind:'Manual',archived:!!r.archived,legacy:true,id:r.id,
+      what:r.what||'',where:r.where||'',supplier:d.supplier,contractNo:d.contractNo,
+      poNo:d.poNo,lineCount:'',orig:d.orig,vars:d.vars,current:d.current,
+      endDate:d.endDate,actuals:d.actuals,notes:r.notes||''});
+  });
+  rows.forEach(r=>r.remaining=r.current-r.actuals);
+  return rows;
+}
 function renderBudgetLines(){
   const view=activeView();
   $('#budget-tools').innerHTML=`
@@ -636,64 +786,64 @@ function renderBudgetLines(){
       ${VIEW_TEMPLATES.map(t=>`<option value="${t.id}" ${view.id===t.id?'selected':''}>${esc(t.name)}</option>`).join('')}
       ${S.views.length?'<optgroup label="Custom views">'+S.views.map(t=>`<option value="${t.id}" ${view.id===t.id?'selected':''}>${esc(t.name)}</option>`).join('')+'</optgroup>':''}
     </select>
-    <select data-act="none" id="archSel" title="Archived lines">
+    <select data-act="none" id="archSel" title="Archived items">
       <option value="hide" ${S.ui.budgetArch==='hide'?'selected':''}>Hide archived</option>
       <option value="show" ${S.ui.budgetArch==='show'?'selected':''}>Show all</option>
       <option value="only" ${S.ui.budgetArch==='only'?'selected':''}>Archived only</option>
     </select>
-    <button class="btn sm" data-act="customView">✎ Custom view</button>
-    <button class="btn sm primary" data-act="addBudgetRow">+ Budget line</button>`;
+    <button class="btn sm" data-act="customView">✎ Custom view</button>`;
   $('#viewSel').onchange=e=>{ S.ui.view=e.target.value; save(); render(); };
   $('#archSel').onchange=e=>{ S.ui.budgetArch=e.target.value; save(); render(); };
 
   const cols=BUDGET_COLS.filter(c=>view.cols.includes(c.k));
-  let rows=S.budget.filter(r=>S.ui.budgetArch==='show'||(S.ui.budgetArch==='only'?r.archived:!r.archived)).map(r=>({r,d:rowCalc(r)}));
+  let rows=overviewRows().filter(r=>S.ui.budgetArch==='show'||(S.ui.budgetArch==='only'?r.archived:!r.archived));
   if(view.filter){ const q=view.filter.toLowerCase();
-    rows=rows.filter(({r,d})=>[r.what,r.where,d.supplier,d.contractNo,d.poNo,r.notes].join(' ').toLowerCase().includes(q)); }
+    rows=rows.filter(r=>[r.what,r.where,r.supplier,r.contractNo,r.poNo,r.notes].join(' ').toLowerCase().includes(q)); }
   const groups={};
-  const gkey=({r,d})=>{ if(!view.groupBy) return ''; if(view.groupBy==='supplier') return d.supplier||'(no supplier)';
-    if(view.groupBy==='where') return r.where||'(no location)'; if(view.groupBy==='contract') return d.contractNo?d.supplier+' — '+d.contractNo:'(no contract)'; return ''; };
+  const gkey=r=>{ if(!view.groupBy) return ''; if(view.groupBy==='supplier') return r.supplier||'(no supplier)';
+    if(view.groupBy==='where') return r.where||'(no location)'; if(view.groupBy==='contract') return r.contractNo?r.supplier+' — '+r.contractNo:'(no contract)'; return ''; };
   rows.forEach(x=>{ const k=gkey(x); (groups[k]=groups[k]||[]).push(x); });
 
-  const cell=(r,d,c)=>{
+  const cell=(r,c)=>{
     switch(c.k){
-      case 'what': return `<td><textarea rows="1" data-bind="budget.${r.id}.what" placeholder="What is this for?">${esc(r.what)}</textarea></td>`;
-      case 'where': return `<td><textarea rows="1" data-bind="budget.${r.id}.where" placeholder="Where">${esc(r.where)}</textarea></td>`;
-      case 'supplier': return (r.contractId||(r.poId&&(poOf(r.poId)||{}).supplier))?`<td class="nowrap">${esc(d.supplier)}</td>`:`<td><input data-bind="budget.${r.id}.supplier" value="${esc(r.supplier||'')}" placeholder="Supplier"></td>`;
-      case 'contract': return `<td><select data-bind="budget.${r.id}.contractId"><option value="">—</option>${S.contracts.filter(c2=>!c2.archived||r.contractId===c2.id).map(c2=>`<option value="${c2.id}" ${r.contractId===c2.id?'selected':''}>${esc((c2.contractNumber||'no #')+' · '+c2.supplier)}</option>`).join('')}</select></td>`;
-      case 'po': { const opts=(r.contractId?posOfContract(r.contractId):standalonePOs()).filter(p=>!p.archived||r.poId===p.id);
-        return `<td><select data-bind="budget.${r.id}.poId" title="${r.contractId?'POs on this contract':'Standalone POs (no contract)'}"><option value="">—</option>${opts.map(p=>`<option value="${p.id}" ${r.poId===p.id?'selected':''}>${esc(p.poNumber||'?')}</option>`).join('')}</select></td>`; }
-      case 'line': return `<td><select data-bind="budget.${r.id}.poLineId" ${r.poId?'':'disabled'}><option value="">—</option>${linesOfPO(r.poId).filter(l=>!l.archived||r.poLineId===l.id).map(l=>`<option value="${l.id}" ${r.poLineId===l.id?'selected':''}>${esc(l.lineNo||'?')} · ${money(l.value)}</option>`).join('')}</select></td>`;
-      case 'orig': return d.auto?`<td class="num nowrap" title="Auto from ${r.contractId?'contract':'PO'}">${money(d.orig)}</td>`:`<td><input class="num" data-bind="budget.${r.id}.orig" data-type="num" value="${r.orig?fmt(r.orig):''}"></td>`;
-      case 'vars': return r.contractId?`<td class="num"><a href="#" class="nowrap" data-act="cvariations" data-id="${r.contractId}" title="Contract variations">${d.vars?money(d.vars):'+ add'}</a></td>`:`<td class="num muted small" title="Variations apply to contracts — link this line to a contract">—</td>`;
-      case 'current': return `<td class="num nowrap" ${r.contractId?'title="Contract original + variations"':''}><b>${money(d.current)}</b></td>`;
-      case 'end': return r.contractId?`<td class="nowrap small">${dstr(d.endDate)||'<span class="muted">—</span>'}</td>`:`<td><input type="date" data-bind="budget.${r.id}.endDate" value="${esc(r.endDate||'')}"></td>`;
-      case 'actuals': return `<td class="num nowrap">${money(d.actuals)}</td>`;
-      case 'remaining': return `<td class="num nowrap ${d.remaining<0?'due-over':''}">${money(d.remaining)}</td>`;
-      case 'notes': return `<td><textarea rows="1" data-bind="budget.${r.id}.notes" placeholder="…">${esc(r.notes||'')}</textarea></td>`;
+      case 'what': return `<td>${esc(r.what)||'<span class="muted small">'+r.kind+'</span>'}</td>`;
+      case 'where': return `<td>${esc(r.where)}</td>`;
+      case 'supplier': return `<td class="nowrap">${esc(r.supplier)}</td>`;
+      case 'contract': return `<td class="nowrap">${esc(r.contractNo)||'<span class="muted">—</span>'}</td>`;
+      case 'po': return `<td class="small">${esc(r.poNo)||'<span class="muted">—</span>'}</td>`;
+      case 'line': return `<td class="num small">${r.lineCount!==''?r.lineCount:''}</td>`;
+      case 'orig': return `<td class="num nowrap">${money(r.orig)}</td>`;
+      case 'vars': return `<td class="num nowrap">${r.vars?money(r.vars):'<span class="muted">—</span>'}</td>`;
+      case 'current': return `<td class="num nowrap"><b>${money(r.current)}</b></td>`;
+      case 'end': return `<td class="nowrap small">${dstr(r.endDate)||'<span class="muted">—</span>'}</td>`;
+      case 'actuals': return `<td class="num nowrap">${money(r.actuals)}</td>`;
+      case 'remaining': return `<td class="num nowrap ${r.remaining<0?'due-over':''}">${money(r.remaining)}</td>`;
+      case 'notes': return `<td class="small">${esc(r.notes)}</td>`;
     } return '<td></td>';
   };
   const sums=list=>{ const t={orig:0,vars:0,current:0,actuals:0,remaining:0};
-    list.forEach(({d})=>{t.orig+=d.orig;t.vars+=d.vars;t.current+=d.current;t.actuals+=d.actuals;t.remaining+=d.remaining;}); return t; };
+    list.forEach(r=>{t.orig+=r.orig;t.vars+=r.vars;t.current+=r.current;t.actuals+=r.actuals;t.remaining+=r.remaining;}); return t; };
   const sumRow=(t,label,cls)=>`<tr class="${cls}"><td colspan="${Math.max(1,cols.findIndex(c=>c.num)===-1?cols.length:cols.findIndex(c=>c.num))}">${esc(label)}</td>${cols.filter((c,i)=>i>=cols.findIndex(x=>x.num)&&cols.findIndex(x=>x.num)>-1).map(c=>c.num?`<td class="num nowrap">${money(t[c.k]||0)}</td>`:'<td></td>').join('')}<td></td></tr>`;
 
   let body='';
   for(const [k,list] of Object.entries(groups)){
-    if(view.groupBy) body+=`<tr class="grp"><td colspan="${cols.length+1}">${esc(k)} <span class="muted small">· ${list.length} line${list.length>1?'s':''} · ${money(sums(list).current)}</span></td></tr>`;
-    body+=list.map(({r,d})=>`<tr data-anchor="budget:${r.id}" class="${r.archived?'arch':''}">${cols.map(c=>cell(r,d,c)).join('')}
-      <td class="nowrap"><span class="rowtools" style="display:inline-flex;gap:2px">
-        ${backlinksTo('budget:'+r.id).length?`<button class="btn sm ghost" title="Linked items" data-act="showBacklinks" data-ref="budget:${r.id}">↩${backlinksTo('budget:'+r.id).length}</button>`:''}
-        <button class="btn sm ghost" data-act="archBudget" data-id="${r.id}" title="${r.archived?'Unarchive':'Archive'} line">${r.archived?'↩':'🗄'}</button>
-        <button class="btn sm ghost danger" data-act="delBudgetRow" data-id="${r.id}" title="Delete line">✕</button></span></td></tr>`).join('');
+    if(view.groupBy) body+=`<tr class="grp"><td colspan="${cols.length+1}">${esc(k)} <span class="muted small">· ${list.length} row${list.length>1?'s':''} · ${money(sums(list).current)}</span></td></tr>`;
+    body+=list.map(r=>`<tr data-anchor="${r.ref}" class="${r.archived?'arch':''}">${cols.map(c=>cell(r,c)).join('')}
+      <td class="nowrap"><span style="display:inline-flex;gap:2px">
+        ${backlinksTo(r.ref).length?`<button class="btn sm ghost" title="Linked items" data-act="showBacklinks" data-ref="${r.ref}">↩${backlinksTo(r.ref).length}</button>`:''}
+        ${r.legacy?`<button class="btn sm ghost" data-act="archBudget" data-id="${r.id}" title="${r.archived?'Unarchive':'Archive'}">${r.archived?'↩':'🗄'}</button>
+        <button class="btn sm ghost danger" data-act="delBudgetRow" data-id="${r.id}" title="Delete legacy line">✕</button>`
+        :`<button class="btn sm ghost" data-goto="${r.ref}" title="Open in Contracts · POs · Lines">→</button>`}</span></td></tr>`).join('');
   }
   const tAll=sums(rows);
   body+=rows.length?sumRow(tAll,'Total','tot'):'';
-  $('#budget-body').innerHTML= S.budget.length?
+  $('#budget-body').innerHTML= rows.length?
     `<div class="tblwrap"><table class="tbl"><thead><tr>${cols.map(c=>`<th class="${c.num?'num':''}">${c.label}</th>`).join('')}<th></th></tr></thead><tbody>${body}</tbody></table></div>
-     <div class="small muted" style="margin-top:8px">Click any cell to edit. Contract → PO → PO line trickle down; supplier and end date follow the contract.</div>`
-    :`<div class="card"><div class="empty">No budget lines yet.<br><br><button class="btn primary" data-act="addBudgetRow">+ Add your first budget line</button></div></div>`;
+     <div class="small muted" style="margin-top:8px">Read-only summary — one row per contract and standalone PO. Edit the detail (including “for what” / “where” on the contract) via <b>Contracts · POs · Lines</b>; → jumps straight there.</div>`
+    :`<div class="card"><div class="empty">Nothing to summarise yet — add contracts or POs on the <b>Contracts · POs · Lines</b> page, or 📥 Import a CSV.<br><br>
+      <button class="btn primary" data-act="contractModal">+ Add a contract</button>
+      <button class="btn" data-act="importCSV">📥 Import from CSV</button></div></div>`;
 }
-ACTIONS.addBudgetRow=()=>{ S.budget.push({id:uid(),what:'',where:'',supplier:'',contractId:'',poId:'',poLineId:'',orig:0,endDate:'',notes:'',archived:false}); save(); render(); };
 ACTIONS.delBudgetRow=t=>{ if(!confirm('Delete this budget line? (Archiving keeps it recoverable.)')) return; S.budget=S.budget.filter(b=>b.id!==t.dataset.id); save(); render(); };
 ACTIONS.archBudget=t=>{ const r=byId(S.budget,t.dataset.id); if(r){ r.archived=!r.archived; save(); render(); toast(r.archived?'Budget line archived':'Budget line restored'); } };
 ACTIONS.showBacklinks=t=>{ const refs=backlinksTo(t.dataset.ref);
@@ -805,7 +955,8 @@ function poBlockHTML(p,showSupplier){
         <span class="muted">${esc(i.forWhat||'')}</span>${i.notes?`<span class="muted small" title="${esc(i.notes)}">🗒</span>`:''}
         <button class="btn sm ghost" data-act="invoiceModal" data-id="${i.id}" data-line="${l.id}">edit</button>
         <button class="btn sm ghost danger" data-act="delInvoice" data-id="${i.id}">✕</button></div>`).join('');
-    return `<tr data-anchor="poline:${l.id}" class="${l.archived?'arch':''}">
+    return `<tr data-anchor="poline:${l.id}" class="${l.archived?'arch':''}" data-drop="poLines:${l.id}">
+      <td style="width:20px;padding-right:0"><span class="dragh" draggable="true" data-drag="poLines:${l.id}" title="Drag to reorder">⠿</span></td>
       <td><input data-bind="poLines.${l.id}.lineNo" value="${esc(l.lineNo)}" style="min-width:44px;width:60px"></td>
       <td><textarea rows="1" data-bind="poLines.${l.id}.description" placeholder="Description">${esc(l.description||'')}</textarea></td>
       <td><input data-bind="poLines.${l.id}.wbs" value="${esc(l.wbs||'')}" placeholder="WBS" style="width:100px"></td>
@@ -814,31 +965,44 @@ function poBlockHTML(p,showSupplier){
       <td><input class="num" data-bind="poLines.${l.id}.value" data-type="num" value="${l.value?fmt(l.value):''}" style="width:100px"></td>
       <td class="num nowrap small">${money(lineInvoiced(l.id))}</td>
       <td class="nowrap"><button class="btn sm ghost" data-act="invoiceModal" data-line="${l.id}" title="Add invoice">+ inv</button>
+        <button class="btn sm ghost" data-act="copyLine" data-id="${l.id}" title="Copy this line's values">⧉</button>
+        ${LINE_CLIP?`<button class="btn sm ghost" data-act="pasteLine" data-id="${l.id}" title="Paste copied line values here">📋</button>`:''}
         <button class="btn sm ghost" data-act="archLine" data-id="${l.id}" title="${l.archived?'Unarchive':'Archive'} line">${l.archived?'↩':'🗄'}</button>
         <button class="btn sm ghost danger" data-act="delLine" data-id="${l.id}">✕</button></td></tr>
-      ${invs.length?`<tr><td></td><td colspan="7"><div class="inv-rows">${invHTML}</div></td></tr>`:''}`;
+      ${invs.length?`<tr><td></td><td></td><td colspan="7"><div class="inv-rows">${invHTML}</div></td></tr>`:''}`;
   }).join('');
   const pSum=poLinesSum(p.id);
-  return `<div class="po-block ${p.archived?'card arch':''}" data-anchor="po:${p.id}">
-    <div class="po-h"><b>PO ${esc(p.poNumber||'?')}</b>${p.archived?'<span class="badge">archived</span>':''}
-      ${showSupplier?`<input data-bind="pos.${p.id}.supplier" value="${esc(p.supplier||'')}" placeholder="Supplier" style="width:150px;border-color:transparent;background:transparent">`:''}
+  const folded=!!S.ui.poCollapsed[p.id];
+  return `<div class="po-block ${p.archived?'card arch':''}" data-anchor="po:${p.id}" data-drop="pos:${p.id}">
+    <div class="po-h"><span class="dragh" draggable="true" data-drag="pos:${p.id}" title="Drag to reorder">⠿</span>
+      <span class="fc-caret" data-act="tglPO" data-id="${p.id}" title="${folded?'Expand':'Collapse'} PO">${folded?'▶':'▼'}</span>
+      <b>PO ${esc(p.poNumber||'?')}</b>${p.archived?'<span class="badge">archived</span>':''}
+      ${showSupplier?`<input data-bind="pos.${p.id}.supplier" value="${esc(p.supplier||'')}" placeholder="Supplier" style="width:130px;border-color:transparent;background:transparent">
+      <input data-bind="pos.${p.id}.where" value="${esc(p.where||'')}" placeholder="Where" style="width:110px;border-color:transparent;background:transparent">`:''}
       <input data-bind="pos.${p.id}.description" value="${esc(p.description||'')}" placeholder="Description" style="flex:1;border-color:transparent;background:transparent">
       <span class="muted small nowrap">${lines.length} line${lines.length===1?'':'s'} · ${money(pSum)}</span>
       <button class="btn sm ghost" data-act="addLine" data-po="${p.id}">+ line</button>
       <button class="btn sm ghost" data-act="archPO" data-id="${p.id}" title="${p.archived?'Unarchive':'Archive'} PO">${p.archived?'↩':'🗄'}</button>
       <button class="btn sm ghost danger" data-act="delPO" data-id="${p.id}" title="Delete PO">✕</button></div>
-    ${lines.length?`<div class="po-b"><div class="tblwrap" style="box-shadow:none"><table class="tbl">
-      <thead><tr><th>Line</th><th>Description</th><th>WBS</th><th>Spend code</th><th>GL code</th><th class="num">Value</th><th class="num">Invoiced</th><th></th></tr></thead>
+    ${lines.length&&!folded?`<div class="po-b"><div class="tblwrap" style="box-shadow:none"><table class="tbl">
+      <thead><tr><th></th><th>Line</th><th>Description</th><th>WBS</th><th>Spend code</th><th>GL code</th><th class="num">Value</th><th class="num">Invoiced</th><th></th></tr></thead>
       <tbody>${lrows}</tbody></table></div></div>`:''}</div>`;
 }
+ACTIONS.tglPO=t=>{ S.ui.poCollapsed[t.dataset.id]=!S.ui.poCollapsed[t.dataset.id]; save(); render(); };
+ACTIONS.tglContract=t=>{ S.ui.structCollapsed[t.dataset.id]=!S.ui.structCollapsed[t.dataset.id]; save(); render(); };
 function contractCardHTML(c,mode){
   const cSum=contractLinesSum(c.id), cv=contractCurrent(c), diff=cv-cSum, vars=contractVarsSum(c);
   const badge= !S.pos.some(p=>p.contractId===c.id)?'' :
     Math.abs(diff)<0.005?`<span class="badge ok" title="PO lines add up to the current contract value">✓ lines reconcile</span>`
     :`<span class="badge ${diff>0?'warn':'bad'}" title="Current contract value ${money(cv)} vs PO lines ${money(cSum)}">${diff>0?'△ '+money(diff)+' unallocated':'△ lines exceed contract by '+money(-diff)}</span>`;
-  const pos=posOfContract(c.id).filter(p=>structVisible(p.archived,mode)).map(p=>poBlockHTML(p,false)).join('');
-  return `<div class="card contract-card ${c.archived?'arch':''}" data-anchor="contract:${c.id}">
-    <div class="card-h"><span class="title">${esc(c.supplier||'Supplier')}</span>${c.archived?'<span class="badge">archived</span>':''}
+  const folded=!!S.ui.structCollapsed[c.id];
+  const poCount=posOfContract(c.id).length, lnCount=posOfContract(c.id).reduce((s,p)=>s+linesOfPO(p.id).length,0);
+  const pos=folded?'':posOfContract(c.id).filter(p=>structVisible(p.archived,mode)).map(p=>poBlockHTML(p,false)).join('');
+  return `<div class="card contract-card ${c.archived?'arch':''}" data-anchor="contract:${c.id}" data-drop="contracts:${c.id}">
+    <div class="card-h"><span class="dragh" draggable="true" data-drag="contracts:${c.id}" title="Drag to reorder">⠿</span>
+      <span class="fc-caret" data-act="tglContract" data-id="${c.id}" title="${folded?'Expand':'Collapse'} contract">${folded?'▶':'▼'}</span>
+      <span class="title">${esc(c.supplier||'Supplier')}</span>${c.archived?'<span class="badge">archived</span>':''}
+      ${folded?`<span class="muted small">${poCount} PO${poCount===1?'':'s'} · ${lnCount} line${lnCount===1?'':'s'}</span>`:''}
       <span class="muted small">supplier # ${esc(c.supplierNumber||'—')} · contract <b>${esc(c.contractNumber||'—')}</b></span>
       ${badge}<span class="sp" style="flex:1"></span>
       <span class="nowrap" title="Original ${money(c.totalValue)}${vars?' + variations '+money(vars):''}"><b>${money(cv)}</b>${vars?` <a href="#" class="small" data-act="cvariations" data-id="${c.id}">incl. ${money(vars)} var</a>`:` <a href="#" class="small muted" data-act="cvariations" data-id="${c.id}">+ variation</a>`}${c.endDate?` <span class="muted small">ends ${dstr(c.endDate)}</span>`:''}</span>
@@ -847,7 +1011,7 @@ function contractCardHTML(c,mode){
       <button class="btn sm ghost" data-act="contractModal" data-id="${c.id}">edit</button>
       <button class="btn sm ghost" data-act="archContract" data-id="${c.id}" title="${c.archived?'Unarchive':'Archive'} contract">${c.archived?'↩':'🗄'}</button>
       <button class="btn sm ghost danger" data-act="delContract" data-id="${c.id}">✕</button></div>
-    <div class="card-b">${pos||'<div class="muted small">No purchase orders yet — add one to start entering PO lines.</div>'}</div></div>`;
+    ${folded?'':`<div class="card-b">${pos||'<div class="muted small">No purchase orders yet — add one to start entering PO lines.</div>'}</div>`}</div>`;
 }
 ACTIONS.saveStructView=()=>{ const name=prompt('Name this view (saves the current filter + template)'); if(!name) return;
   S.structViews.push({id:uid(),name:name.trim(),filter:S.ui.structFilter||'',mode:structModeOf(S.ui.structView||'active')});
@@ -863,7 +1027,9 @@ ACTIONS.contractModal=t=>{ const c=t&&t.dataset.id?contractOf(t.dataset.id):null
       <label class="f"><span>Supplier name</span><input name="supplier" value="${esc(c?c.supplier:'')}" required></label>
       <label class="f"><span>Supplier number</span><input name="supplierNumber" value="${esc(c?c.supplierNumber:'')}"></label>
       <label class="f"><span>Contract number</span><input name="contractNumber" value="${esc(c?c.contractNumber:'')}"></label>
-      <label class="f"><span>Total value</span><input name="totalValue" value="${c&&c.totalValue?fmt(c.totalValue):''}" placeholder="0"></label>
+      <label class="f"><span>Total value (original)</span><input name="totalValue" value="${c&&c.totalValue?fmt(c.totalValue):''}" placeholder="0"></label>
+      <label class="f"><span>For what (shows on Overview)</span><input name="what" value="${esc(c?c.what||'':'')}"></label>
+      <label class="f"><span>Where</span><input name="where" value="${esc(c?c.where||'':'')}"></label>
       <label class="f"><span>Start date</span><input type="date" name="startDate" value="${esc(c?c.startDate||'':'')}"></label>
       <label class="f"><span>Current end date</span><input type="date" name="endDate" value="${esc(c?c.endDate||'':'')}"></label>
     </div>
@@ -873,6 +1039,7 @@ ACTIONS.contractModal=t=>{ const c=t&&t.dataset.id?contractOf(t.dataset.id):null
 };
 FORMS.saveContract=f=>{ const id=f.id&&f.id.value;
   const data={supplier:f.supplier.value.trim(),supplierNumber:f.supplierNumber.value.trim(),contractNumber:f.contractNumber.value.trim(),
+    what:f.what.value.trim(),where:f.where.value.trim(),
     totalValue:parseNum(f.totalValue.value),startDate:f.startDate.value,endDate:f.endDate.value,notes:f.notes.value};
   if(id){ Object.assign(contractOf(id),data); } else S.contracts.push({id:uid(),variations:[],archived:false,...data});
   save(); closeModal(); render();
@@ -885,6 +1052,7 @@ ACTIONS.delContract=t=>{ const id=t.dataset.id; const nPos=posOfContract(id).len
   S.pos=S.pos.filter(p=>p.contractId!==id);
   S.contracts=S.contracts.filter(c=>c.id!==id);
   S.budget.forEach(b=>{ if(b.contractId===id){ b.contractId='';b.poId='';b.poLineId=''; } });
+  S.fcLines=S.fcLines.filter(f=>f.parentRef!=='contract:'+id);
   save(); render();
 };
 ACTIONS.poModal=t=>{ const cid=(t&&t.dataset.contract)||'';
@@ -910,6 +1078,8 @@ ACTIONS.delPO=t=>{ const id=t.dataset.id; if(!confirm('Delete this PO, its lines
   S.poLines=S.poLines.filter(l=>l.poId!==id);
   S.pos=S.pos.filter(p=>p.id!==id);
   S.budget.forEach(b=>{ if(b.poId===id){ b.poId='';b.poLineId=''; } });
+  S.fcLines=S.fcLines.filter(f=>f.parentRef!=='po:'+id);
+  S.fcLines.forEach(f=>{ if(f.poId===id){ f.poId=''; f.poLineId=''; } });
   save(); render();
 };
 ACTIONS.addLine=t=>{ const po=t.dataset.po; const n=linesOfPO(po).length+1;
@@ -919,6 +1089,7 @@ ACTIONS.delLine=t=>{ const id=t.dataset.id; const nInv=invoicesOfLine(id).length
   S.invoices=S.invoices.filter(i=>i.poLineId!==id);
   S.poLines=S.poLines.filter(l=>l.id!==id);
   S.budget.forEach(b=>{ if(b.poLineId===id) b.poLineId=''; });
+  S.fcLines.forEach(f=>{ if(f.poLineId===id) f.poLineId=''; });
   save(); render();
 };
 ACTIONS.invoiceModal=t=>{ const inv=t.dataset.id?byId(S.invoices,t.dataset.id):null; const lineId=t.dataset.line||(inv&&inv.poLineId);
@@ -969,21 +1140,24 @@ const actualsInPeriod=(lineIds,p)=>S.invoices.filter(i=>lineIds.includes(i.poLin
 const fcEntry=(ref,key)=>S.forecast[ref+'|'+key];
 function fcOwn(ref,current,actuals,key){ const f=fcEntry(ref,key); if(!f) return 0;
   return f.mode==='pct'? (current-actuals)*f.v/100 : f.v; }
-function fcTopRows(){ // contracts → PO-line children; standalone POs → line children; unlinked budget lines
+function fcLineChild(f){ // a user-added forecast line: pick PO + line, name it with a 'for'
+  const l=lineOf(f.poLineId), p=poOf(f.poId);
+  const current=l?parseNum(l.value):0, actuals=l?lineInvoiced(l.id):0;
+  return {ref:'fcline:'+f.id,f,label:f.forWhat||'(forecast line)',
+    sub:(p?'PO '+(p.poNumber||'?'):'no PO')+(l?' / '+(l.lineNo||'?'):''),
+    current,actuals,lineIds:l?[l.id]:[]};
+}
+const fcChildren=parentRef=>S.fcLines.filter(f=>f.parentRef===parentRef).map(fcLineChild);
+function fcTopRows(){ // contracts + standalone POs, each with user-defined forecast lines beneath
   const rows=[];
   S.contracts.filter(c=>!c.archived).forEach(c=>{
-    const kids=posOfContract(c.id).filter(p=>!p.archived).flatMap(p=>linesOfPO(p.id).filter(l=>!l.archived).map(l=>(
-      {ref:'poline:'+l.id,label:'PO '+(p.poNumber||'?')+' / '+(l.lineNo||'?')+(l.description?' — '+l.description:''),
-       current:parseNum(l.value),actuals:lineInvoiced(l.id),lineIds:[l.id]})));
     rows.push({ref:'contract:'+c.id,label:(c.supplier||'Contract')+(c.contractNumber?' · '+c.contractNumber:''),sub:'Contract',
       current:contractCurrent(c),actuals:contractActuals(c.id),
-      lineIds:posOfContract(c.id).flatMap(p=>linesOfPO(p.id).map(l=>l.id)),children:kids});
+      lineIds:posOfContract(c.id).flatMap(p=>linesOfPO(p.id).map(l=>l.id)),children:fcChildren('contract:'+c.id)});
   });
   standalonePOs().filter(p=>!p.archived).forEach(p=>{
-    const kids=linesOfPO(p.id).filter(l=>!l.archived).map(l=>({ref:'poline:'+l.id,
-      label:'Line '+(l.lineNo||'?')+(l.description?' — '+l.description:''),current:parseNum(l.value),actuals:lineInvoiced(l.id),lineIds:[l.id]}));
     rows.push({ref:'po:'+p.id,label:'PO '+(p.poNumber||'?')+(p.supplier?' · '+p.supplier:''),sub:'Standalone PO',
-      current:poLinesSum(p.id),actuals:poActuals(p.id),lineIds:linesOfPO(p.id).map(l=>l.id),children:kids});
+      current:poLinesSum(p.id),actuals:poActuals(p.id),lineIds:linesOfPO(p.id).map(l=>l.id),children:fcChildren('po:'+p.id)});
   });
   S.budget.filter(b=>!b.archived&&!b.contractId&&!b.poId&&!b.poLineId).forEach(b=>{
     const d=rowCalc(b);
@@ -1027,24 +1201,50 @@ function renderForecast(){
     save(); render(); };
   const rows=fcTopRows();
   if(!rows.length){ $('#budget-body').innerHTML=`<div class="card"><div class="empty">Nothing to forecast yet — add contracts (with PO lines) or budget lines first.</div></div>`; return; }
-  const rowHTML=(row,isChild)=>{
+  const childHTML=ch=>{ const f=ch.f;
+    const cells=ps.map(p=>fcCellHTML(ch.ref,ch.current,ch.actuals,p,{act:actualsInPeriod(ch.lineIds,p),roll:0})).join('');
+    const fcTot=ps.reduce((s,p)=>s+fcOwn(ch.ref,ch.current,ch.actuals,p.key),0);
+    const poOpts=(f.parentRef.startsWith('contract:')?posOfContract(f.parentRef.slice(9)):S.pos.filter(p=>'po:'+p.id===f.parentRef)).filter(p=>!p.archived||f.poId===p.id);
+    return `<tr data-anchor="${ch.ref}" class="fc-line" data-drop="fcLines:${f.id}">
+      <td style="min-width:330px;padding-left:14px">
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+        <span class="dragh" draggable="true" data-drag="fcLines:${f.id}" title="Drag to reorder">⠿</span>
+        <input data-bind="fcLines.${f.id}.forWhat" value="${esc(f.forWhat||'')}" placeholder="For…" style="width:120px;flex:1;min-width:100px">
+        <select data-bind="fcLines.${f.id}.poId" title="PO" style="max-width:110px"><option value="">PO…</option>${poOpts.map(p=>`<option value="${p.id}" ${f.poId===p.id?'selected':''}>${esc(p.poNumber||'?')}</option>`).join('')}</select>
+        <select data-bind="fcLines.${f.id}.poLineId" title="PO line" style="max-width:80px" ${f.poId?'':'disabled'}><option value="">line…</option>${linesOfPO(f.poId).filter(l=>!l.archived||f.poLineId===l.id).map(l=>`<option value="${l.id}" ${f.poLineId===l.id?'selected':''}>${esc(l.lineNo||'?')}</option>`).join('')}</select>
+        </div>
+      </td>
+      <td class="num nowrap muted small" title="PO line value (shared if several forecast lines use this PO line)">${ch.lineIds.length?money(ch.current):'—'}</td>
+      <td class="num nowrap muted small">${ch.lineIds.length?money(ch.actuals):'—'}</td>
+      ${cells}
+      <td class="num nowrap">${money(fcTot)}</td>
+      <td class="num nowrap muted small">—</td>
+      <td class="nowrap"><button class="btn sm ghost" data-act="spreadRow" data-ref="${ch.ref}" title="Spread PO line remainder evenly over empty periods">↔</button>
+        <button class="btn sm ghost danger" data-act="delFcLine" data-id="${f.id}" title="Delete forecast line">✕</button></td></tr>`;
+  };
+  const rowHTML=row=>{
     const open=!!S.ui.fcOpen[row.ref];
+    const expandable=row.ref.startsWith('contract:')||row.ref.startsWith('po:');
     const cells=ps.map(p=>fcCellHTML(row.ref,row.current,row.actuals,p,
-      {act:actualsInPeriod(row.lineIds,p),roll:isChild?0:fcRollup(row,p.key)})).join('');
-    const fcTot=isChild?ps.reduce((s,p)=>s+fcOwn(row.ref,row.current,row.actuals,p.key),0):ps.reduce((s,p)=>s+fcRollup(row,p.key),0);
+      {act:actualsInPeriod(row.lineIds,p),roll:fcRollup(row,p.key)})).join('');
+    const fcTot=ps.reduce((s,p)=>s+fcRollup(row,p.key),0);
     const variance=row.current-row.actuals-fcTot;
-    return `<tr data-anchor="${row.ref}" class="${isChild?'fc-line':''}">
-      <td class="nowrap" style="max-width:250px;overflow:hidden;text-overflow:ellipsis;${isChild?'padding-left:30px':''}">
-        ${!isChild&&(row.children||[]).length?`<span class="fc-caret" data-act="fcToggle" data-ref="${row.ref}" title="Show PO line detail">${open?'▼':'▶'}</span> `:''}
-        <b style="${isChild?'font-weight:500':''}">${esc(row.label)}</b>${row.sub?`<br><span class="muted small" style="${isChild?'':''};margin-left:${!isChild&&(row.children||[]).length?'22px':'0'}">${esc(row.sub)}</span>`:''}</td>
+    return `<tr data-anchor="${row.ref}">
+      <td class="nowrap" style="max-width:250px;overflow:hidden;text-overflow:ellipsis">
+        ${expandable?`<span class="fc-caret" data-act="fcToggle" data-ref="${row.ref}" title="Forecast line detail">${open?'▼':'▶'}</span> `:''}
+        <b>${esc(row.label)}</b>${row.sub?`<br><span class="muted small" style="margin-left:${expandable?'22px':'0'}">${esc(row.sub)}${(row.children||[]).length?' · '+row.children.length+' forecast line'+(row.children.length===1?'':'s'):''}</span>`:''}</td>
       <td class="num nowrap">${money(row.current)}</td><td class="num nowrap">${money(row.actuals)}</td>
       ${cells}
       <td class="num nowrap">${money(fcTot)}</td>
       <td class="num nowrap">${Math.abs(variance)<.005?'<span class="badge ok">0</span>':`<span class="badge ${variance>0?'warn':'bad'}" title="${variance>0?'Unphased budget':'Phased above remaining budget'}">${money(variance)}</span>`}</td>
       <td><button class="btn sm ghost" data-act="spreadRow" data-ref="${row.ref}" title="Spread remaining evenly over empty periods">↔</button></td></tr>`
-      +(open?(row.children||[]).map(ch=>rowHTML(ch,true)).join(''):'');
+      +(open?(row.children||[]).map(childHTML).join('')
+        +`<tr class="fc-addrow"><td colspan="${ps.length+6}">
+          <button class="btn sm ghost" data-act="addFcLine" data-parent="${row.ref}">+ Forecast line</button>
+          <button class="btn sm ghost" data-act="fcSeedLines" data-parent="${row.ref}" title="Add one forecast line per PO line that doesn't have one yet">+ one per PO line</button>
+          <span class="muted small">— several forecast lines can phase the same PO line; they wrap up into the row above (Σ)</span></td></tr>`:'');
   };
-  const body=rows.map(r=>rowHTML(r,false)).join('');
+  const body=rows.map(r=>rowHTML(r)).join('');
   const colTot=ps.map(p=>{ const fc=rows.reduce((s,r)=>s+fcRollup(r,p.key),0);
     const act=rows.reduce((s,r)=>s+actualsInPeriod(r.lineIds,p),0);
     return `<td class="num nowrap">${fmt(fc)}<br><span class="small muted">act ${fmt(act)}</span></td>`; }).join('');
@@ -1054,7 +1254,7 @@ function renderForecast(){
     <thead><tr><th>Item</th><th class="num">Current value</th><th class="num">Actuals to date</th>
     ${ps.map(p=>`<th class="num nowrap">${p.label}${p.sub?`<br><span style="font-weight:400;text-transform:none;letter-spacing:0">${p.sub}</span>`:''}</th>`).join('')}<th class="num">Forecast Σ</th><th class="num">Unphased</th><th></th></tr></thead>
     <tbody>${body}<tr class="tot"><td>Total</td><td class="num nowrap">${money(tCur)}</td><td class="num nowrap">${money(tAct)}</td>${colTot}<td class="num nowrap">${money(tFc)}</td><td class="num nowrap">${money(tCur-tAct-tFc)}</td><td></td></tr></tbody></table></div>
-    <div class="small muted" style="margin-top:8px">Quarters follow the <b>July–June financial year</b> — Q1 FY27 = Jul–Sep 2026. Type a value (<b>5,000</b>) or a percentage of remaining budget (<b>25%</b>) in any cell; percentages account for what has already been spent. ▶ expands a contract to phase individual PO lines — line entries wrap up into the contract row (Σ). “act” shows invoiced actuals in that period.</div>`;
+    <div class="small muted" style="margin-top:8px">Quarters follow the <b>July–June financial year</b> — Q1 FY27 = Jul–Sep 2026. Type a value (<b>5,000</b>) or a percentage of remaining budget (<b>25%</b>) in any cell; percentages account for what has already been spent. ▶ expands a contract to add <b>forecast lines</b> — each picks a PO + PO line and a “for”, several can phase the same PO line, and they wrap up into the contract row (Σ). Paste tab-separated values from Excel to fill several periods at once. “act” shows invoiced actuals in that period.</div>`;
 }
 function handleForecastCell(el){ const [ref,key]=el.dataset.fc.split('|'); const raw=el.value.trim();
   if(!raw){ delete S.forecast[ref+'|'+key]; }
@@ -1063,6 +1263,24 @@ function handleForecastCell(el){ const [ref,key]=el.dataset.fc.split('|'); const
   save(); renderKeepFocus();
 }
 ACTIONS.fcToggle=t=>{ const ref=t.dataset.ref; S.ui.fcOpen[ref]=!S.ui.fcOpen[ref]; save(); render(); };
+ACTIONS.addFcLine=t=>{ const parentRef=t.dataset.parent;
+  S.fcLines.push({id:uid(),parentRef,poId:'',poLineId:'',forWhat:''});
+  S.ui.fcOpen[parentRef]=true; save(); render(); };
+ACTIONS.delFcLine=t=>{ const id=t.dataset.id;
+  const hasEntries=Object.keys(S.forecast).some(k=>k.startsWith('fcline:'+id+'|'));
+  if(hasEntries&&!confirm('Delete this forecast line and its phased values?')) return;
+  Object.keys(S.forecast).forEach(k=>{ if(k.startsWith('fcline:'+id+'|')) delete S.forecast[k]; });
+  S.fcLines=S.fcLines.filter(f=>f.id!==id); save(); render(); };
+ACTIONS.fcSeedLines=t=>{ const parentRef=t.dataset.parent;
+  const pos=parentRef.startsWith('contract:')?posOfContract(parentRef.slice(9)):S.pos.filter(p=>'po:'+p.id===parentRef);
+  let n=0;
+  pos.filter(p=>!p.archived).forEach(p=>linesOfPO(p.id).filter(l=>!l.archived).forEach(l=>{
+    if(!S.fcLines.some(f=>f.parentRef===parentRef&&f.poLineId===l.id)){
+      S.fcLines.push({id:uid(),parentRef,poId:p.id,poLineId:l.id,forWhat:l.description||''}); n++; }
+  }));
+  if(!n) return toast('Every PO line already has a forecast line');
+  S.ui.fcOpen[parentRef]=true; save(); render(); toast(n+' forecast line'+(n===1?'':'s')+' added');
+};
 ACTIONS.spreadRow=t=>{ const ref=t.dataset.ref; const ps=periodList();
   const find=(rows)=>{ for(const r of rows){ if(r.ref===ref) return {r,child:false}; const c=(r.children||[]).find(ch=>ch.ref===ref); if(c) return {r:c,child:true}; } return null; };
   const hit=find(fcTopRows()); if(!hit) return;
@@ -1560,8 +1778,8 @@ function xSheet(name,rows){ // rows[0] is the header row
 ACTIONS.exportExcel=()=>{
   const ps=periodList();
   const sheets=[
-    xSheet('Budget',[['For what','Where','Supplier','Contract #','PO #','PO line','Original budget','Variations','Current value','Contract end','Actuals','Remaining','Notes','Archived'],
-      ...S.budget.map(r=>{const d=rowCalc(r);return [r.what,r.where,d.supplier,d.contractNo,d.poNo,d.lineNo,d.orig,d.vars,d.current,d.endDate,d.actuals,d.remaining,r.notes||'',r.archived?'yes':''];})]),
+    xSheet('Overview',[['Type','For what','Where','Supplier','Contract #','PO #','PO lines','Original budget','Variations','Current value','Contract end','Actuals','Remaining','Notes','Archived'],
+      ...overviewRows().map(r=>[r.kind,r.what,r.where,r.supplier,r.contractNo,r.poNo,r.lineCount===''?'':r.lineCount,r.orig,r.vars,r.current,r.endDate,r.actuals,r.remaining,r.notes,r.archived?'yes':''])]),
     xSheet('Contracts',[['Supplier','Supplier #','Contract #','Original value','Variations','Current value','Start','End','Sum of PO lines','Unallocated','Notes','Archived'],
       ...S.contracts.map(c=>[c.supplier,c.supplierNumber,c.contractNumber,parseNum(c.totalValue),contractVarsSum(c),contractCurrent(c),c.startDate||'',c.endDate||'',contractLinesSum(c.id),contractCurrent(c)-contractLinesSum(c.id),c.notes||'',c.archived?'yes':''])]),
     xSheet('Variations',[['Supplier','Contract #','Description','Date','Value'],
@@ -1575,7 +1793,7 @@ ACTIONS.exportExcel=()=>{
     xSheet('Forecast',[['Item','Level','Current value','Actuals to date',...ps.map(p=>p.label+' forecast'),...ps.map(p=>p.label+' actual')],
       ...fcTopRows().flatMap(row=>[
         [row.label,row.sub||'',row.current,row.actuals,...ps.map(p=>fcRollup(row,p.key)),...ps.map(p=>actualsInPeriod(row.lineIds,p))],
-        ...(row.children||[]).map(ch=>['    '+ch.label,'PO line',ch.current,ch.actuals,...ps.map(p=>fcOwn(ch.ref,ch.current,ch.actuals,p.key)),...ps.map(p=>actualsInPeriod(ch.lineIds,p))])])]),
+        ...(row.children||[]).map(ch=>['    '+ch.label+' ('+ch.sub+')','Forecast line',ch.current,ch.actuals,...ps.map(p=>fcOwn(ch.ref,ch.current,ch.actuals,p.key)),...ps.map(p=>actualsInPeriod(ch.lineIds,p))])])]),
     xSheet('Actions',(()=>{const rows=[['Task','Level','State','Due','Completed','Last actioned','Links','Notes']];
       walkTasks((t,depth)=>rows.push(['  '.repeat(depth)+(t.name||''),depth,stateOf(t.stateId).name,t.due||'',t.completed||'',t.lastActioned||'',(t.links||[]).map(l=>refLabel(...l.split(':'))).join('; '),t.notes||''])); return rows;})()),
     xSheet('Calendar',[['Date','End date','Time','Title','Tags','Notes','Links'],
@@ -1602,8 +1820,8 @@ function mdTable(head,rows){ if(!rows.length) return '_None._\n';
   return [line(head),'|'+head.map(()=>'---').join('|')+'|',...rows.map(line)].join('\n')+'\n'; }
 ACTIONS.exportMD=()=>{
   const ps=periodList(); let md=`# ${S.programme.name} — programme snapshot\n\nExported ${todayStr()}.\n\n`;
-  md+=`## Budget lines\n\n`+mdTable(['For what','Where','Supplier','Contract #','PO #','PO line','Original','Variations','Current value','End date','Actuals','Remaining','Notes'],
-    S.budget.map(r=>{const d=rowCalc(r);return [r.what,r.where,d.supplier,d.contractNo,d.poNo,d.lineNo,fmt(d.orig),fmt(d.vars),fmt(d.current),d.endDate,fmt(d.actuals),fmt(d.remaining),r.notes||''];}));
+  md+=`## Overview (one row per contract / standalone PO)\n\n`+mdTable(['Type','For what','Where','Supplier','Contract #','PO #','Original','Variations','Current value','End date','Actuals','Remaining','Notes'],
+    overviewRows().map(r=>[r.kind,r.what,r.where,r.supplier,r.contractNo,r.poNo,fmt(r.orig),fmt(r.vars),fmt(r.current),r.endDate,fmt(r.actuals),fmt(r.remaining),r.notes]));
   md+=`\n## Contracts\n\n`;
   if(!S.contracts.length) md+='_None._\n';
   S.contracts.forEach(c=>{
