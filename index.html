@@ -115,6 +115,8 @@ tr.fc-line>td{background:var(--surface-2)}
 .drop-above{box-shadow:inset 0 3px 0 var(--accent)!important}
 .drop-below{box-shadow:inset 0 -3px 0 var(--accent)!important}
 .fc-addrow td{padding:4px 10px;background:var(--surface-2)}
+.fc-cell.fc-ro{color:var(--ink);font-weight:600;background:var(--surface-2)}
+.fc-cell.fc-ro .sub{font-weight:400}
 
 /* ---------- chips & pills ---------- */
 .chip{display:inline-flex;align-items:center;gap:4px;background:var(--sel);border:1px solid var(--line);color:var(--ink);border-radius:99px;padding:1px 9px;font-size:12px;cursor:pointer;text-decoration:none;white-space:nowrap;vertical-align:middle}
@@ -182,12 +184,12 @@ dialog .m-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;bord
 .cal-list .day-h{font-family:var(--serif);font-size:15px;margin:16px 0 6px;font-weight:600}
 
 /* ---------- tasks ---------- */
-.task-tree{padding:4px 0}
-.task-row{display:flex;align-items:center;gap:7px;padding:3px 8px;border-radius:8px;position:relative}
+.task-tree{padding:4px 2px}
+.task-row{display:flex;align-items:center;gap:5px;padding:1px 2px;border-radius:6px;position:relative}
 .task-row:hover{background:var(--surface-2)}
-.task-row .caret{width:18px;height:18px;display:grid;place-items:center;color:var(--ink-3);cursor:pointer;border-radius:5px;flex:none;font-size:10px}
+.task-row .caret{flex:0 0 16px;width:16px;min-width:16px;height:18px;display:inline-flex;align-items:center;justify-content:center;color:var(--ink-3);cursor:pointer;border-radius:5px;font-size:10px}
 .task-row .caret:hover{background:var(--sel);color:var(--ink)}
-.task-row .caret.empty{visibility:hidden}
+.task-row .caret.chidden{visibility:hidden}
 .task-row input.tname{flex:1;border-color:transparent;background:transparent;min-width:140px}
 .task-row input.tname:focus{border-color:var(--accent);background:var(--surface)}
 .task-row.done input.tname{color:var(--ink-3);text-decoration:line-through}
@@ -196,11 +198,16 @@ dialog .m-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;bord
 .task-row input[type=date]:hover{border-color:var(--line)}
 .task-row .rowtools{display:none;gap:2px}
 .task-row:hover .rowtools{display:inline-flex}
-.task-row .dragh{opacity:0}
+.task-row .dragh{opacity:0;width:14px;padding:0 2px}
 .task-row:hover .dragh{opacity:.5}
-.task-kids{margin-left:20px;border-left:1px solid var(--line-2);padding-left:6px}
-.task-notes{margin:0 0 4px 62px}
-.task-notes textarea{width:min(640px,90%);font-size:12.5px;min-height:40px}
+.task-kids{margin-left:14px;border-left:1px solid var(--line-2);padding-left:6px}
+.task-notes{margin:0 0 3px 40px}
+.task-notes textarea{width:min(680px,94%);font-size:12.5px;min-height:44px}
+.task-row .notebtn{font-size:11px;color:var(--ink-2);cursor:pointer;border:1px solid var(--line);border-radius:6px;padding:0 6px;white-space:nowrap}
+.task-row .notebtn:hover{border-color:var(--accent);color:var(--accent)}
+.task-row .notebtn.open{background:var(--accent-soft);border-color:var(--accent)}
+.header-row .rowtools{display:none}
+.header-row:hover .rowtools{display:inline-flex}
 .tlinks{display:inline-flex;gap:4px;flex-wrap:wrap;max-width:340px}
 .due-over{color:var(--bad)!important;font-weight:600}
 .due-soon{color:var(--warn)!important;font-weight:600}
@@ -320,7 +327,7 @@ const dstr=d=>d?new Date(d+'T00:00').toLocaleDateString('en-NZ',{day:'numeric',m
 let S=null, lsKey=null, TAB='budget';
 
 function defaultState(name){return {
-  v:4,
+  v:5,
   programme:{name:name||'New Programme',currency:'$',created:todayStr(),modified:''},
   settings:{
     whereLabel:'Where',   // customisable secondary identifier (e.g. "Site", "Workstream", "Region")
@@ -359,7 +366,7 @@ function defaultState(name){return {
   poLines:[],    // {id,poId,lineNo,wbs,spendCode,glCode,value,description,archived}
   invoices:[],   // {id,poLineId,invoiceNumber,value,date,forWhat,notes}
   budget:[],     // legacy manual budget lines (shown read-only on Overview)
-  fcLines:[],    // forecast lines {id,parentRef,poId,poLineId,forWhat,statusId,startDate,endDate}
+  fcLines:[],    // forecast lines {id,parentRef,poId,poLineId,forWhat,statusId,startDate,endDate,archived}
   forecast:{},   // '<type>:<id>|<period>' -> {mode:'val'|'pct', v:number}
   fcCfg:{gran:'month',start:currentMonthKey(),count:12},
   events:[],     // {id,title,date,endDate,time,tagIds:[],organiser,notes,links:[]}
@@ -371,7 +378,7 @@ function defaultState(name){return {
   fcViews:[],    // saved forecast views {id,name,gran,start,count,filter}
   ui:{budgetTab:'lines',calMode:'month',calDate:todayStr(),view:'full',hideDone:false,
       budgetArch:'hide',structView:'active',structFilter:'',fcFilter:'',fcView:'',fcOpen:{},
-      structCollapsed:{},poCollapsed:{},notePage:'',taskGroup:'',taskWeekOnly:false},
+      structCollapsed:{},poCollapsed:{},notePage:'',taskGroup:'',taskWeekOnly:false,fcArch:'active'},
 };}
 function currentMonthKey(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
 
@@ -449,6 +456,18 @@ function migrate(d){ const def=defaultState('x');
     d.links=d.links||[];
     d.v=4;
   }
+  if(d.v<5){ // v4 → v5: contract/PO-level forecast entries become forecast lines so the parent row is a pure sum
+    d.fcLines=d.fcLines||[];
+    const parents={};
+    Object.keys(d.forecast||{}).forEach(k=>{ const [ref,p]=k.split('|');
+      if(ref.startsWith('contract:')||ref.startsWith('po:')){
+        if(!parents[ref]){ const f={id:uid(),parentRef:ref,poId:'',poLineId:'',forWhat:'General',statusId:'',startDate:'',endDate:'',archived:false}; d.fcLines.push(f); parents[ref]=f.id; }
+        d.forecast['fcline:'+parents[ref]+'|'+p]=d.forecast[k]; delete d.forecast[k];
+      }
+    });
+    d.v=5;
+  }
+  (d.fcLines||[]).forEach(f=>{ if(f.archived===undefined) f.archived=false; });
   if(!d.notes||!d.notes.length) d.notes=[{id:uid(),name:'Notes',icon:'📝',blocks:[{id:uid(),type:'h1',html:'Notes'},{id:uid(),type:'p',html:''}]}];
   (d.contracts||[]).forEach(c=>{ if(!c.variations) c.variations=[]; });
   (d.tasks||[]).forEach(function fix(t){ if(!t.type) t.type='task'; if(!t.tagIds) t.tagIds=[]; (t.children||[]).forEach(fix); });
@@ -806,17 +825,16 @@ ACTIONS.deleteProgramme=()=>{
 
 /* ================= BUDGET ================= */
 const BUDGET_COLS=[
-  {k:'what',label:'For what'},{k:'where',label:'Where'/*overridden*/},{k:'supplier',label:'Supplier'},
+  {k:'what',label:'For what'},{k:'supplier',label:'Supplier'},
   {k:'contract',label:'Contract #'},{k:'po',label:'PO #'},{k:'line',label:'PO line'},
   {k:'orig',label:'Original budget',num:1},{k:'vars',label:'Variations',num:1},
   {k:'current',label:'Current value',num:1},{k:'end',label:'Contract end'},
-  {k:'actuals',label:'Actuals',num:1},{k:'remaining',label:'Remaining',num:1},{k:'notes',label:'Notes'},
+  {k:'actuals',label:'Actuals',num:1},{k:'remaining',label:'Remaining',num:1},
 ];
 const VIEW_TEMPLATES=[
   {id:'full',name:'Full detail',cols:BUDGET_COLS.map(c=>c.k),groupBy:'',filter:''},
   {id:'financial',name:'Financial summary',cols:['what','supplier','orig','vars','current','actuals','remaining'],groupBy:'',filter:''},
-  {id:'bysupplier',name:'By supplier',cols:['what','where','contract','po','current','actuals','remaining'],groupBy:'supplier',filter:''},
-  {id:'bywhere',name:'By location',cols:['what','supplier','current','actuals','remaining','notes'],groupBy:'where',filter:''},
+  {id:'bysupplier',name:'By supplier',cols:['what','contract','po','current','actuals','remaining'],groupBy:'supplier',filter:''},
   {id:'contractreg',name:'Contract register',cols:['supplier','contract','po','line','current','end','actuals'],groupBy:'contract',filter:''},
 ];
 function activeView(){ return VIEW_TEMPLATES.find(v=>v.id===S.ui.view)||byId(S.views,S.ui.view)||VIEW_TEMPLATES[0]; }
@@ -843,7 +861,7 @@ function overviewRows(){
   S.contracts.forEach(c=>{
     const poList=posOfContract(c.id);
     rows.push({ref:'contract:'+c.id,kind:'Contract',archived:!!c.archived,
-      what:c.what||'',where:c.where||'',supplier:c.supplier||'',contractNo:c.contractNumber||'',
+      what:c.what||c.contractNumber||c.supplier||'',where:c.where||'',supplier:c.supplier||'',contractNo:c.contractNumber||'',
       poNo:poList.map(p=>p.poNumber).filter(Boolean).join(', '),
       lineCount:poList.reduce((s,p)=>s+linesOfPO(p.id).length,0),
       orig:parseNum(c.totalValue),vars:contractVarsSum(c),current:contractCurrent(c),
@@ -925,7 +943,7 @@ function renderBudgetLines(){
   body+=rows.length?sumRow(tAll,'Total','tot'):'';
   $('#budget-body').innerHTML= rows.length?
     `<div class="tblwrap"><table class="tbl"><thead><tr>${cols.map(c=>`<th class="${c.num?'num':''}">${esc(colLabel(c))}</th>`).join('')}<th></th></tr></thead><tbody>${body}</tbody></table></div>
-     <div class="small muted" style="margin-top:8px">Read-only summary — one row per contract and standalone PO. Edit the detail (including “for what” / “${esc(whereLabel().toLowerCase())}” on the contract) via <b>Contracts · POs · Lines</b>; → jumps straight there.</div>`
+     <div class="small muted" style="margin-top:8px">Read-only summary — one row per contract and standalone PO. Edit the detail (the contract name is its “for what”) via <b>Contracts · POs · Lines</b>; → jumps straight there.</div>`
     :`<div class="card"><div class="empty">Nothing to summarise yet — add contracts or POs on the <b>Contracts · POs · Lines</b> page, or 📥 Import a CSV.<br><br>
       <button class="btn primary" data-act="contractModal">+ Add a contract</button>
       <button class="btn" data-act="importCSV">📥 Import from CSV</button></div></div>`;
@@ -961,7 +979,6 @@ ACTIONS.customView=()=>{ const view=activeView();
       <label class="f"><span>Group by</span><select name="groupBy">
         <option value="">No grouping</option>
         <option value="supplier" ${view.groupBy==='supplier'?'selected':''}>Supplier</option>
-        <option value="where" ${view.groupBy==='where'?'selected':''}>${esc(whereLabel())}</option>
         <option value="contract" ${view.groupBy==='contract'?'selected':''}>Contract</option></select></label>
       <label class="f"><span>Filter (text match)</span><input name="filter" value="${esc(view.filter||'')}" placeholder="e.g. henderson"></label>
     </div>
@@ -1087,7 +1104,7 @@ function contractCardHTML(c,mode){
   return `<div class="card contract-card ${c.archived?'arch':''}" data-anchor="contract:${c.id}" data-drop="contracts:${c.id}">
     <div class="card-h"><span class="dragh" draggable="true" data-drag="contracts:${c.id}" title="Drag to reorder">⠿</span>
       <span class="fc-caret" data-act="tglContract" data-id="${c.id}" title="${folded?'Expand':'Collapse'} contract">${folded?'▶':'▼'}</span>
-      <span class="title">${esc(c.supplier||'Supplier')}</span>${c.archived?'<span class="badge">archived</span>':''}
+      <span class="title">${esc(c.supplier||'Supplier')}</span>${c.what?`<span class="title" style="color:var(--accent)">— ${esc(c.what)}</span>`:''}${c.archived?'<span class="badge">archived</span>':''}
       ${folded?`<span class="muted small">${poCount} PO${poCount===1?'':'s'} · ${lnCount} line${lnCount===1?'':'s'}</span>`:''}
       <span class="muted small">supplier # ${esc(c.supplierNumber||'—')} · contract <b>${esc(c.contractNumber||'—')}</b></span>
       ${badge}<span class="sp" style="flex:1"></span>
@@ -1240,7 +1257,7 @@ function fcLineChild(f){ // a user-added forecast line: pick PO + line, name it 
     sub:(p?'PO '+(p.poNumber||'?'):'no PO')+(l?' / '+(l.lineNo||'?'):''),
     current,actuals,lineIds:l?[l.id]:[]};
 }
-const fcChildren=parentRef=>S.fcLines.filter(f=>f.parentRef===parentRef).map(fcLineChild);
+const fcChildren=parentRef=>S.fcLines.filter(f=>f.parentRef===parentRef&&(S.ui.fcArch==='show'||!f.archived)).map(fcLineChild);
 function fcTopRows(){ // contracts + standalone POs, each with user-defined forecast lines beneath
   const rows=[];
   S.contracts.filter(c=>!c.archived).forEach(c=>{
@@ -1259,19 +1276,24 @@ function fcTopRows(){ // contracts + standalone POs, each with user-defined fore
   const q=(S.ui.fcFilter||'').toLowerCase();
   return q?rows.filter(r=>(r.label+' '+r.sub).toLowerCase().includes(q)):rows;
 }
-function fcRollup(row,key){ // contract-level entry + all PO-line entries wrap up to the contract row
-  return fcOwn(row.ref,row.current,row.actuals,key)
-    +(row.children||[]).reduce((s,ch)=>s+fcOwn(ch.ref,ch.current,ch.actuals,key),0);
+function fcRollup(row,key){ // contract/PO rows = pure sum of their forecast lines; manual budget rows keep their own entry
+  const kids=(row.children||[]).reduce((s,ch)=>s+fcOwn(ch.ref,ch.current,ch.actuals,key),0);
+  if(row.ref.startsWith('contract:')||row.ref.startsWith('po:')) return kids;
+  return fcOwn(row.ref,row.current,row.actuals,key)+kids;
 }
 function fcCellHTML(ref,current,actuals,p,extra){
+  extra=extra||{};
+  if(extra.readonly){ // parent contract/PO row: not editable, just the summed forecast of the lines below
+    const parts=[]; if(extra.act) parts.push('act '+fmt(extra.act));
+    return `<td class="fc-cell fc-ro num nowrap" title="Sum of the forecast lines below (edit those, not this)">${extra.roll?fmt(extra.roll):'·'}<span class="sub">${parts.join(' ')}</span></td>`;
+  }
   const f=fcEntry(ref,p.key);
   const shown=f?(f.mode==='pct'?f.v+'%':fmt(f.v)):'';
   const own=fcOwn(ref,current,actuals,p.key);
   const parts=[];
-  if(extra&&extra.roll&&Math.abs(extra.roll-own)>0.005) parts.push('Σ '+fmt(extra.roll));
-  else if(f&&f.mode==='pct') parts.push('≈'+fmt(own));
-  if(extra&&extra.act) parts.push('act '+fmt(extra.act));
-  return `<td class="fc-cell"><input data-fc="${ref}|${p.key}" class="${f&&f.mode==='pct'?'pct':''}" value="${esc(shown)}" placeholder="·" title="Enter a value, or a % of remaining (e.g. 25%). Σ shows PO-line detail wrapped up.">
+  if(f&&f.mode==='pct') parts.push('≈'+fmt(own));
+  if(extra.act) parts.push('act '+fmt(extra.act));
+  return `<td class="fc-cell"><input data-fc="${ref}|${p.key}" class="${f&&f.mode==='pct'?'pct':''}" value="${esc(shown)}" placeholder="·" title="Enter a value, or a % of remaining (e.g. 25%).">
     <span class="sub">${parts.join(' · ')||''}</span></td>`;
 }
 function renderForecast(){
@@ -1291,7 +1313,9 @@ function renderForecast(){
     <select data-bind="fcCfg.gran"><option value="month" ${cfg.gran==='month'?'selected':''}>Monthly</option><option value="quarter" ${cfg.gran==='quarter'?'selected':''}>Quarterly (FY Jul–Jun)</option></select>
     <input type="month" data-bind="fcCfg.start" value="${esc(cfg.start)}" title="First period">
     <select data-bind="fcCfg.count" data-type="num">${[4,6,8,12,16,18,24].map(n=>`<option value="${n}" ${cfg.count===n?'selected':''}>${n} periods</option>`).join('')}</select>
-    <input data-bind="ui.fcFilter" value="${esc(S.ui.fcFilter||'')}" placeholder="Filter…" style="width:140px">`;
+    <input data-bind="ui.fcFilter" value="${esc(S.ui.fcFilter||'')}" placeholder="Filter…" style="width:140px">
+    <label class="small nowrap" title="Show archived forecast lines"><input type="checkbox" id="fcArchChk" ${S.ui.fcArch==='show'?'checked':''}> show archived</label>`;
+  const fca=$('#fcArchChk'); if(fca) fca.onchange=e=>{ S.ui.fcArch=e.target.checked?'show':'active'; save(); render(); };
   const fy=$('#fcFY'); if(fy) fy.onchange=e=>{ if(!e.target.value) return;
     S.fcCfg.start=e.target.value; S.fcCfg.gran='quarter'; S.fcCfg.count=4; S.ui.fcView=''; save(); render(); };
   $('#fcViewSel').onchange=e=>{ const v=byId(S.fcViews,e.target.value);
@@ -1305,7 +1329,7 @@ function renderForecast(){
     const fcTot=ps.reduce((s,p)=>s+fcOwn(ch.ref,ch.current,ch.actuals,p.key),0);
     const poOpts=(f.parentRef.startsWith('contract:')?posOfContract(f.parentRef.slice(9)):S.pos.filter(p=>'po:'+p.id===f.parentRef)).filter(p=>!p.archived||f.poId===p.id);
     const sup=fcSupplier(f.parentRef), stt=fcStatusOf(f.statusId);
-    return `<tr data-anchor="${ch.ref}" class="fc-line" data-drop="fcLines:${f.id}">
+    return `<tr data-anchor="${ch.ref}" class="fc-line ${f.archived?'arch':''}" data-drop="fcLines:${f.id}">
       <td style="min-width:360px;padding-left:14px">
         <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
         <span class="dragh" draggable="true" data-drag="fcLines:${f.id}" title="Drag to reorder">⠿</span>
@@ -1326,13 +1350,14 @@ function renderForecast(){
       <td class="num nowrap">${money(fcTot)}</td>
       <td class="num nowrap muted small">—</td>
       <td class="nowrap"><button class="btn sm ghost" data-act="spreadRow" data-ref="${ch.ref}" title="Spread PO line remainder evenly over empty periods">↔</button>
+        <button class="btn sm ghost" data-act="archFcLine" data-id="${f.id}" title="${f.archived?'Unarchive':'Archive'} forecast line">${f.archived?'↩':'🗄'}</button>
         <button class="btn sm ghost danger" data-act="delFcLine" data-id="${f.id}" title="Delete forecast line">✕</button></td></tr>`;
   };
   const rowHTML=row=>{
     const open=!!S.ui.fcOpen[row.ref];
     const expandable=row.ref.startsWith('contract:')||row.ref.startsWith('po:');
     const cells=ps.map(p=>fcCellHTML(row.ref,row.current,row.actuals,p,
-      {act:actualsInPeriod(row.lineIds,p),roll:fcRollup(row,p.key)})).join('');
+      {act:actualsInPeriod(row.lineIds,p),roll:fcRollup(row,p.key),readonly:expandable})).join('');
     const fcTot=ps.reduce((s,p)=>s+fcRollup(row,p.key),0);
     const variance=row.current-row.actuals-fcTot;
     return `<tr data-anchor="${row.ref}">
@@ -1360,7 +1385,7 @@ function renderForecast(){
     <thead><tr><th>Item</th><th class="num">Current value</th><th class="num">Actuals to date</th>
     ${ps.map(p=>`<th class="num nowrap">${p.label}${p.sub?`<br><span style="font-weight:400;text-transform:none;letter-spacing:0">${p.sub}</span>`:''}</th>`).join('')}<th class="num">Forecast Σ</th><th class="num">Unphased</th><th></th></tr></thead>
     <tbody>${body}<tr class="tot"><td>Total</td><td class="num nowrap">${money(tCur)}</td><td class="num nowrap">${money(tAct)}</td>${colTot}<td class="num nowrap">${money(tFc)}</td><td class="num nowrap">${money(tCur-tAct-tFc)}</td><td></td></tr></tbody></table></div>
-    <div class="small muted" style="margin-top:8px">Quarters follow the <b>July–June financial year</b> — Q1 FY27 = Jul–Sep 2026. Type a value (<b>5,000</b>) or a percentage of remaining budget (<b>25%</b>) in any cell; percentages account for what has already been spent. ▶ expands a contract to add <b>forecast lines</b> — each picks a PO + PO line and a “for”, several can phase the same PO line, and they wrap up into the contract row (Σ). Paste tab-separated values from Excel to fill several periods at once. “act” shows invoiced actuals in that period.</div>`;
+    <div class="small muted" style="margin-top:8px">Quarters follow the <b>July–June financial year</b> — Q1 FY27 = Jul–Sep 2026. ▶ expands a contract/PO to add <b>forecast lines</b>; you phase on the lines (type a value like <b>5,000</b> or a % of remaining like <b>25%</b>), and the contract row above is the read-only sum of its lines. Several lines can phase the same PO line. Archive a line with 🗄 and use “show archived” to bring them back. Paste tab-separated values from Excel to fill several periods at once. “act” shows invoiced actuals in that period.</div>`;
 }
 function handleForecastCell(el){ const [ref,key]=el.dataset.fc.split('|'); const raw=el.value.trim();
   if(!raw){ delete S.forecast[ref+'|'+key]; }
@@ -1370,8 +1395,9 @@ function handleForecastCell(el){ const [ref,key]=el.dataset.fc.split('|'); const
 }
 ACTIONS.fcToggle=t=>{ const ref=t.dataset.ref; S.ui.fcOpen[ref]=!S.ui.fcOpen[ref]; save(); render(); };
 ACTIONS.addFcLine=t=>{ const parentRef=t.dataset.parent;
-  S.fcLines.push({id:uid(),parentRef,poId:'',poLineId:'',forWhat:''});
+  S.fcLines.push({id:uid(),parentRef,poId:'',poLineId:'',forWhat:'',statusId:'',startDate:'',endDate:'',archived:false});
   S.ui.fcOpen[parentRef]=true; save(); render(); };
+ACTIONS.archFcLine=t=>{ const f=byId(S.fcLines,t.dataset.id); if(f){ f.archived=!f.archived; save(); render(); toast(f.archived?'Forecast line archived':'Forecast line restored'); } };
 ACTIONS.delFcLine=t=>{ const id=t.dataset.id;
   const hasEntries=Object.keys(S.forecast).some(k=>k.startsWith('fcline:'+id+'|'));
   if(hasEntries&&!confirm('Delete this forecast line and its phased values?')) return;
@@ -1592,16 +1618,18 @@ function taskListHTML(list,hide,depth){ return list.filter(t=>t.type==='header'|
 function hasOpenDesc(t){ let open=false; walkTasks(x=>{ if(x.type!=='header'&&!stateOf(x.stateId).done) open=true; },t.children||[]); return open; }
 function taskHTML(t,hide,depth){
   const kids=(t.children||[]);
-  const caret=`<span class="caret ${kids.length?'':'empty'}" data-act="tglTask" data-id="${t.id}">${t.collapsed?'▶':'▼'}</span>`;
+  const caret=`<span class="caret ${kids.length?'':'chidden'}" data-act="tglTask" data-id="${t.id}">${t.collapsed?'▶':'▼'}</span>`;
   const drag=`<span class="dragh" draggable="true" data-drag="tasks:${t.id}" title="Drag to reorder">⠿</span>`;
   const kidsHTML=kids.length&&!t.collapsed?`<div class="task-kids">${taskListHTML(kids,hide,depth+1)}</div>`:'';
   if(t.type==='header'){
+    const fs=Math.max(13,16-depth); // sub-headers get progressively smaller
     return `<div data-tid="${t.id}" data-drop="tasks:${t.id}">
       <div class="task-row header-row" data-anchor="task:${t.id}">
         ${drag}${caret}
-        <input class="theader" value="${esc(t.name)}" placeholder="Section header…" data-tname="${t.id}">
+        <input class="theader" style="font-size:${fs}px" value="${esc(t.name)}" placeholder="${depth?'Sub-header…':'Section header…'}" data-tname="${t.id}">
         <span class="rowtools">
           <button class="btn sm ghost" data-act="addSub" data-id="${t.id}" title="Add task inside">＋ task</button>
+          <button class="btn sm ghost" data-act="addSubHeader" data-id="${t.id}" title="Add sub-header inside">＋ header</button>
           <button class="btn sm ghost" data-act="outdentTask" data-id="${t.id}" title="Un-nest">⇤</button>
           <button class="btn sm ghost" data-act="indentTask" data-id="${t.id}" title="Nest">⇥</button>
           <button class="btn sm ghost danger" data-act="delTask" data-id="${t.id}" title="Delete">✕</button>
@@ -1616,6 +1644,7 @@ function taskHTML(t,hide,depth){
       <span class="pill" data-act="cycleState" data-id="${t.id}" style="background:${st.color}1c;color:${st.color};border-color:${st.color}55" title="Click to change state">${esc(st.name)}</span>
       <input class="tname" value="${esc(t.name)}" placeholder="Task…" data-tname="${t.id}">
       <span class="tlinks">${(t.tagIds||[]).map(id=>{const tg=taskTagOf(id);return tg?`<span class="chip" data-act="taskTagMenu" data-id="${t.id}" style="border-color:${tg.color};background:${tg.color}1a">${esc(tg.name)}</span>`:'';}).join('')}${(t.links||[]).map(l=>chipHTML(l,'task:'+t.id)).join('')}</span>
+      ${(t.notes||t.showNotes)?`<span class="notebtn ${t.showNotes?'open':''}" data-act="taskNotes" data-id="${t.id}" title="Notes — click to ${t.showNotes?'hide':'view'}">🗒 ${t.showNotes?'▾':'▸'}</span>`:''}
       <span class="meta">
         <input class="towner" value="${esc(t.owner||'')}" placeholder="owner" data-towner="${t.id}" title="Owner / person" list="ownerlist">
         <span class="rowtools">
@@ -1644,6 +1673,7 @@ ACTIONS.addTask=()=>{ const t=newTask(); S.tasks.push(t); save(); render(); focu
 ACTIONS.addHeader=()=>{ const h=newHeader(); S.tasks.push(h); save(); render(); focusTask(h.id); };
 ACTIONS.tglWeek=()=>{ S.ui.taskWeekOnly=!S.ui.taskWeekOnly; save(); render(); };
 ACTIONS.addSub=el=>{ const r=findTask(el.dataset.id); if(!r) return; r.t.children=r.t.children||[]; const t=newTask(); r.t.children.push(t); r.t.collapsed=false; if(r.t.type!=='header') touch(r.t); save(); render(); focusTask(t.id); };
+ACTIONS.addSubHeader=el=>{ const r=findTask(el.dataset.id); if(!r) return; r.t.children=r.t.children||[]; const h=newHeader(); r.t.children.push(h); r.t.collapsed=false; save(); render(); focusTask(h.id); };
 ACTIONS.tglTask=el=>{ const r=findTask(el.dataset.id); if(r){ r.t.collapsed=!r.t.collapsed; save(); render(); } };
 ACTIONS.cycleState=el=>{ const r=findTask(el.dataset.id); if(!r) return;
   const states=S.settings.taskStates; const i=states.findIndex(s=>s.id===r.t.stateId);
@@ -1670,7 +1700,8 @@ ACTIONS.indentTask=el=>{ const r=findTask(el.dataset.id); if(!r||r.idx===0) retu
   const prev=r.list[r.idx-1]; r.list.splice(r.idx,1); prev.children=prev.children||[]; prev.children.push(r.t); prev.collapsed=false; save(); render(); focusTask(r.t.id); };
 ACTIONS.outdentTask=el=>{ const r=findTask(el.dataset.id); if(!r||!r.parent) return;
   const pr=findTask(r.parent.id); r.list.splice(r.idx,1); pr.list.splice(pr.idx+1,0,r.t); save(); render(); focusTask(r.t.id); };
-ACTIONS.taskNotes=el=>{ const r=findTask(el.dataset.id); if(r){ r.t.showNotes=!r.t.showNotes; save(); render(); } };
+ACTIONS.taskNotes=el=>{ const r=findTask(el.dataset.id); if(r){ r.t.showNotes=!r.t.showNotes; save(); render();
+  if(r.t.showNotes) setTimeout(()=>{ const ta=document.querySelector(`[data-tnotes="${r.t.id}"]`); if(ta) ta.focus(); },40); } };
 ACTIONS.taskLink=el=>{ const id=el.dataset.id;
   linkPicker(ref=>{ const r=findTask(id); if(r){ r.t.links=r.t.links||[]; if(!r.t.links.includes(ref)) r.t.links.push(ref); touch(r.t); save(); render(); } },'task:'+id); };
 function focusTask(id){ setTimeout(()=>{ const i=document.querySelector(`[data-tname="${id}"]`); if(i){ i.focus(); } },40); ownerDatalist(); }
