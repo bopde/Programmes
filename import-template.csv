@@ -1,7 +1,7 @@
-type,supplier,supplier_number,contract_number,contract_value,what,where,start_date,end_date,po_number,po_description,line_number,line_description,wbs,spend_code,gl_code,line_value,invoice_number,invoice_value,invoice_date,invoice_for,notes
-contract,Henderson Civil,S-1001,C-2026-01,150000,Hub construction,Henderson,2026-07-01,2027-06-30,,,,,,,,,,,,,Example contract
-po,,,C-2026-01,,,,,,PO-7788,Hub construction works,,,,,,,,,,,PO linked to the contract above
-po,Sparks Electrical,,,,,Central,,,PO-9900,Standalone maintenance PO,,,,,,,,,,,PO with no contract (supplier goes on the PO)
-line,,,,,,,,,PO-7788,,10,Civil works,WBS-100,CAPEX,6100,100000,,,,,
-line,,,,,,,,,PO-7788,,20,Fit-out,WBS-110,OPEX,6200,50000,,,,,
-invoice,,,,,,,,,PO-7788,,10,,,,,,INV-001,25000,2026-07-10,Site prep,Invoice against PO-7788 line 10
+type,supplier,supplier_number,contract_number,contract_value,what,start_date,end_date,po_number,po_description,line_number,line_description,wbs,spend_code,gl_code,line_value,invoice_number,invoice_value,invoice_date,invoice_for,notes
+contract,Henderson Civil,S-1001,C-2026-01,150000,Hub construction,2026-07-01,2027-06-30,,,,,,,,,,,,,Example contract
+po,,,C-2026-01,,,,,PO-7788,Hub construction works,,,,,,,,,,,PO linked to the contract above
+po,Sparks Electrical,,,,,,,PO-9900,Standalone maintenance PO,,,,,,,,,,,PO with no contract
+line,,,,,,,,PO-7788,,10,Civil works,WBS-100,CAPEX,6100,100000,,,,,
+line,,,,,,,,PO-7788,,20,Fit-out,WBS-110,OPEX,6200,50000,,,,,
+invoice,,,,,,,,PO-7788,,10,,,,,,INV-001,25000,2026-07-10,Site prep,Invoice against PO-7788 line 10

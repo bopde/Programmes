@@ -117,6 +117,7 @@ tr.fc-line>td{background:var(--surface-2)}
 .fc-addrow td{padding:4px 10px;background:var(--surface-2)}
 .fc-cell.fc-ro{color:var(--ink);font-weight:600;background:var(--surface-2)}
 .fc-cell.fc-ro .sub{font-weight:400}
+tr.fc-planned>td{background:#f4f1fa}
 
 /* ---------- chips & pills ---------- */
 .chip{display:inline-flex;align-items:center;gap:4px;background:var(--sel);border:1px solid var(--line);color:var(--ink);border-radius:99px;padding:1px 9px;font-size:12px;cursor:pointer;text-decoration:none;white-space:nowrap;vertical-align:middle}
@@ -196,18 +197,27 @@ dialog .m-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;bord
 .task-row .meta{display:flex;align-items:center;gap:6px;flex:none}
 .task-row input[type=date]{border-color:transparent;background:transparent;color:var(--ink-2);font-size:12px;width:118px}
 .task-row input[type=date]:hover{border-color:var(--line)}
-.task-row .rowtools{display:none;gap:2px}
-.task-row:hover .rowtools{display:inline-flex}
+.task-row .rowtools{display:inline-flex;gap:1px;opacity:.35;transition:opacity .12s}
+.task-row:hover .rowtools{opacity:1}
+.task-row .rowtools .btn{padding:2px 5px}
 .task-row .dragh{opacity:0;width:14px;padding:0 2px}
 .task-row:hover .dragh{opacity:.5}
 .task-kids{margin-left:14px;border-left:1px solid var(--line-2);padding-left:6px}
 .task-notes{margin:0 0 3px 40px}
-.task-notes textarea{width:min(680px,94%);font-size:12.5px;min-height:44px}
+.task-notes textarea{width:min(680px,94%);font-size:12.5px;min-height:44px;field-sizing:content;max-height:300px;line-height:1.5}
 .task-row .notebtn{font-size:11px;color:var(--ink-2);cursor:pointer;border:1px solid var(--line);border-radius:6px;padding:0 6px;white-space:nowrap}
 .task-row .notebtn:hover{border-color:var(--accent);color:var(--accent)}
 .task-row .notebtn.open{background:var(--accent-soft);border-color:var(--accent)}
-.header-row .rowtools{display:none}
-.header-row:hover .rowtools{display:inline-flex}
+.header-row .rowtools{opacity:.35}
+.header-row:hover .rowtools{opacity:1}
+/* due-date cue: subtle tint + coloured left edge, echoing the priority tags */
+.task-row .duewrap{display:inline-flex;align-items:center;gap:4px;border-radius:6px;padding:0 2px}
+.task-row input[type=date].due-over{background:var(--bad-soft);box-shadow:inset 3px 0 0 var(--bad);color:var(--bad);font-weight:600}
+.task-row input[type=date].due-soon{background:var(--warn-soft);box-shadow:inset 3px 0 0 var(--warn);color:var(--warn);font-weight:600}
+.task-row input[type=date].due-near{background:var(--good-soft);box-shadow:inset 3px 0 0 var(--good)}
+.task-row input[type=date].due-far{box-shadow:inset 3px 0 0 var(--line)}
+.task-row .tlast{border-color:transparent;background:transparent;color:var(--ink-3);font-size:12px;width:116px}
+.task-row .tlast:hover{border-color:var(--line)}
 .tlinks{display:inline-flex;gap:4px;flex-wrap:wrap;max-width:340px}
 .due-over{color:var(--bad)!important;font-weight:600}
 .due-soon{color:var(--warn)!important;font-weight:600}
@@ -232,14 +242,14 @@ dialog .m-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;bord
 .page-head .ptitle:hover,.page-head .ptitle:focus{background:var(--surface-2);outline:none}
 
 /* ---------- status / notes editor ---------- */
-.doc{max-width:860px;margin:0 auto;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:44px 56px;min-height:60vh}
-.blk{position:relative;margin:2px 0;border-radius:6px}
-.blk .bc{outline:none;padding:3px 6px;border-radius:6px;min-height:1.4em}
-.blk .bc:focus{background:var(--surface-2)}
+.doc{max-width:900px;margin:0 auto;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:40px 52px 64px;min-height:60vh}
+.blk{position:relative;margin:1px 0;border-radius:6px}
+.blk .bc{outline:none;padding:4px 6px;border-radius:6px;min-height:1.5em;line-height:1.6;transition:background .1s}
+.blk .bc:focus{background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line-2)}
 .blk .bc:empty:before{content:attr(data-ph);color:var(--ink-3)}
-.blk.t-h1 .bc{font-family:var(--serif);font-size:26px;font-weight:600;margin-top:10px}
-.blk.t-h2 .bc{font-family:var(--serif);font-size:20px;font-weight:600;margin-top:8px}
-.blk.t-h3 .bc{font-size:16px;font-weight:600}
+.blk.t-h1 .bc{font-family:var(--serif);font-size:27px;font-weight:600;margin-top:12px}
+.blk.t-h2 .bc{font-family:var(--serif);font-size:20px;font-weight:600;margin-top:14px}
+.blk.t-h3 .bc{font-size:16px;font-weight:600;margin-top:6px}
 .blk.t-bullet{display:flex}.blk.t-bullet:before{content:'•';padding:3px 2px 0 10px;color:var(--ink-2)}
 .blk.t-bullet .bc{flex:1}
 .blk.t-callout{background:var(--accent-soft);border:1px solid #eadbce;padding:6px 10px}
@@ -257,6 +267,15 @@ dialog .m-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;bord
 .blk table.ntbl tr:first-child td{background:var(--surface-2);font-weight:600}
 .tbl-tools{display:none;gap:4px;margin:2px 0 6px}
 .blk:hover .tbl-tools{display:flex}
+.blk.t-grid table.ngrid{font-size:12.5px}
+.blk.t-grid table.ngrid th{white-space:normal;vertical-align:bottom}
+.blk.t-grid table.ngrid td{padding:2px 4px;vertical-align:top}
+.blk.t-grid table.ngrid td textarea{border-color:transparent;background:transparent;width:100%;min-width:80px;resize:none;field-sizing:content;max-height:160px;line-height:1.35;font-size:12.5px;padding:3px 4px}
+.blk.t-grid table.ngrid td textarea:hover{border-color:var(--line)}
+.blk.t-grid table.ngrid td textarea:focus{border-color:var(--accent);background:var(--surface)}
+.blk.t-grid table.ngrid td select{border-color:transparent;background:transparent;width:100%;padding:3px 2px;font-size:12.5px}
+.blk.t-grid table.ngrid td select:hover{border-color:var(--line)}
+.blk.t-grid table.ngrid td select:focus{border-color:var(--accent);background:var(--surface)}
 #slashmenu{position:absolute;z-index:60;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 28px rgba(34,48,62,.18);padding:5px;display:none;width:230px}
 #slashmenu button{display:flex;width:100%;border:0;background:none;text-align:left;padding:6px 10px;border-radius:7px;cursor:pointer;font:inherit;gap:9px;align-items:center}
 #slashmenu button:hover,#slashmenu button.hl{background:var(--sel)}
@@ -292,6 +311,7 @@ input[type=color]{padding:0;width:34px;height:28px;border-radius:6px;cursor:poin
     <button class="btn sm" data-act="importCSV" title="Download data to Excel, edit, and re-upload">📥 Data</button>
     <button class="btn sm" data-act="exportExcel" title="Export to Excel">📊 Excel</button>
     <button class="btn sm" data-act="exportMD" title="Export Markdown snapshot (AI-friendly)">📝 Markdown</button>
+    <button class="btn sm ghost" data-act="trash" title="Recently deleted — restore items">🗑<span id="trashCount"></span></button>
     <button class="btn sm ghost" data-act="settings" title="Settings">⚙</button>
   </div>
 </header>
@@ -327,10 +347,9 @@ const dstr=d=>d?new Date(d+'T00:00').toLocaleDateString('en-NZ',{day:'numeric',m
 let S=null, lsKey=null, TAB='budget';
 
 function defaultState(name){return {
-  v:5,
+  v:6,
   programme:{name:name||'New Programme',currency:'$',created:todayStr(),modified:''},
   settings:{
-    whereLabel:'Where',   // customisable secondary identifier (e.g. "Site", "Workstream", "Region")
     taskStates:[
       {id:'todo', name:'To do', color:'#96a2ae', done:false},
       {id:'doing',name:'Doing', color:'#b06a3b', done:false},
@@ -361,25 +380,28 @@ function defaultState(name){return {
       {id:'complete',name:'Complete',color:'#4a7c59'},
     ],
   },
-  contracts:[],  // {id,supplier,supplierNumber,contractNumber,totalValue,variations:[{id,label,value,date}],startDate,endDate,notes,archived,what,where}
-  pos:[],        // {id,poNumber,contractId ('' = standalone),supplier,description,archived,where}
+  contracts:[],  // {id,supplier,supplierNumber,contractNumber,totalValue,variations:[{id,label,value,date}],startDate,endDate,notes,archived,what}
+  pos:[],        // {id,poNumber,contractId ('' = standalone),supplier,description,archived}
   poLines:[],    // {id,poId,lineNo,wbs,spendCode,glCode,value,description,archived}
   invoices:[],   // {id,poLineId,invoiceNumber,value,date,forWhat,notes}
   budget:[],     // legacy manual budget lines (shown read-only on Overview)
-  fcLines:[],    // forecast lines {id,parentRef,poId,poLineId,forWhat,statusId,startDate,endDate,archived}
+  fcLines:[],    // forecast lines {id,parentRef ('contract:x'|'po:x'|'planned'),poId,poLineId,forWhat,supplier,plannedValue,statusId,startDate,endDate,archived}
   forecast:{},   // '<type>:<id>|<period>' -> {mode:'val'|'pct', v:number}
-  fcCfg:{gran:'month',start:currentMonthKey(),count:12},
+  fcCfg:{gran:'quarter',start:fyStartKey(),count:4},
   events:[],     // {id,title,date,endDate,time,tagIds:[],organiser,notes,links:[]}
   tasks:[],      // nested: {id,name,type('task'|'header'),due,lastActioned,completed,stateId,priorityId,owner,tagIds:[],notes,links:[],collapsed,children:[]}
   notes:[{id:uid(),name:'Notes',icon:'📝',kind:'doc',blocks:[{id:uid(),type:'h1',html:'Notes'},{id:uid(),type:'p',html:''}]}],  // pages (was S.status)
   links:[],      // links database [{id,title,url,category,notes}]
+  trash:[],      // recently deleted: {id,kind,label,when,bundle}
   views:[],      // custom budget views {id,name,cols:[],groupBy,filter}
   structViews:[],// saved contract-page views {id,name,filter,mode}
-  fcViews:[],    // saved forecast views {id,name,gran,start,count,filter}
+  fcViews:[],    // saved forecast views {id,name,start,count,filter}
   ui:{budgetTab:'lines',calMode:'month',calDate:todayStr(),view:'full',hideDone:false,
-      budgetArch:'hide',structView:'active',structFilter:'',fcFilter:'',fcView:'',fcOpen:{},
+      budgetArch:'hide',structView:'active',structFilter:'',structF:{supplier:'',wbs:'',contract:''},
+      fcFilter:'',fcF:{supplier:'',wbs:'',contract:''},fcView:'',fcOpen:{},
       structCollapsed:{},poCollapsed:{},notePage:'',taskGroup:'',taskWeekOnly:false,fcArch:'active'},
 };}
+function fyStartKey(){ const d=new Date(); const y=d.getMonth()+1>=7?d.getFullYear():d.getFullYear()-1; return y+'-07'; }
 function currentMonthKey(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
 
 function save(){ if(!S) return; S.programme.modified=new Date().toISOString();
@@ -467,14 +489,25 @@ function migrate(d){ const def=defaultState('x');
     });
     d.v=5;
   }
-  (d.fcLines||[]).forEach(f=>{ if(f.archived===undefined) f.archived=false; });
+  if(d.v<6){ // v5 → v6: drop the "where" field; quarterly-only forecast; add trash
+    delete d.settings.whereLabel;
+    (d.contracts||[]).forEach(c=>delete c.where); (d.pos||[]).forEach(p=>delete p.where);
+    if(d.fcCfg){ d.fcCfg.gran='quarter'; }
+    d.trash=d.trash||[];
+    d.v=6;
+  }
+  (d.fcLines||[]).forEach(f=>{ if(f.archived===undefined) f.archived=false; if(f.supplier===undefined) f.supplier=''; });
   if(!d.notes||!d.notes.length) d.notes=[{id:uid(),name:'Notes',icon:'📝',blocks:[{id:uid(),type:'h1',html:'Notes'},{id:uid(),type:'p',html:''}]}];
   (d.contracts||[]).forEach(c=>{ if(!c.variations) c.variations=[]; });
   (d.tasks||[]).forEach(function fix(t){ if(!t.type) t.type='task'; if(!t.tagIds) t.tagIds=[]; (t.children||[]).forEach(fix); });
   if(!d.ui.fcOpen) d.ui.fcOpen={};
   if(!d.ui.structCollapsed) d.ui.structCollapsed={};
   if(!d.ui.poCollapsed) d.ui.poCollapsed={};
+  if(!d.ui.structF) d.ui.structF={supplier:'',wbs:'',contract:''};
+  if(!d.ui.fcF) d.ui.fcF={supplier:'',wbs:'',contract:''};
+  if(d.fcCfg) d.fcCfg.gran='quarter';
   if(!d.links) d.links=[];
+  if(!d.trash) d.trash=[];
   return d;
 }
 function importState(obj){
@@ -490,7 +523,9 @@ function initUI(){
   document.title=S.programme.name+' — Programme Manager';
   setTab(TAB);
 }
-function setTab(name){ TAB=name;
+function setTab(name){
+  if(S&&S.tasks&&pruneEmptyTasks()) save(); // drop blank tasks when leaving/switching
+  TAB=name;
   $$('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===name));
   render();
 }
@@ -500,10 +535,34 @@ function render(){
   else if(TAB==='calendar') renderCalendar(v);
   else if(TAB==='actions') renderTasks(v);
   else if(TAB==='status') renderStatus(v);
+  refreshTrashCount();
 }
 
 /* ================= lookups & derived values ================= */
 const byId=(arr,id)=>arr.find(x=>x.id===id);
+/* ---- trash: soft-delete with restore (keeps last 50) ---- */
+const deepCopy=x=>JSON.parse(JSON.stringify(x));
+function trashPush(kind,label,bundle){ S.trash.unshift({id:uid(),kind,label,when:new Date().toISOString(),bundle:deepCopy(bundle)}); if(S.trash.length>50) S.trash.length=50; }
+function findTaskIn(list,id){ for(const t of list){ if(t.id===id) return true; if(t.children&&findTaskIn(t.children,id)) return true; } return false; }
+function restoreTrash(id){ const i=S.trash.findIndex(t=>t.id===id); if(i<0) return; const e=S.trash[i], b=e.bundle;
+  ['contracts','pos','poLines','invoices','fcLines','events','links','budget'].forEach(coll=>{ (b[coll]||[]).forEach(o=>{ if(o&&!byId(S[coll],o.id)) S[coll].push(o); }); });
+  if(b.forecast) Object.assign(S.forecast,b.forecast);
+  (b.notes||[]).forEach(pg=>{ if(!byId(S.notes,pg.id)) S.notes.push(pg); });
+  if(b.task&&!findTaskIn(S.tasks,b.task.id)){ const parent=b.parentId?findTask(b.parentId):null;
+    const list=parent?(parent.t.children=parent.t.children||[]):S.tasks;
+    list.splice(Math.min(b.index==null?list.length:b.index,list.length),0,b.task); }
+  S.trash.splice(i,1); save(); render(); toast(e.kind+' restored'); }
+function contractBundle(id){ const poIds=S.pos.filter(p=>p.contractId===id).map(p=>p.id);
+  const lineIds=S.poLines.filter(l=>poIds.includes(l.poId)).map(l=>l.id);
+  const b={contracts:[byId(S.contracts,id)],pos:S.pos.filter(p=>poIds.includes(p.id)),poLines:S.poLines.filter(l=>lineIds.includes(l.id)),
+    invoices:S.invoices.filter(i=>lineIds.includes(i.poLineId)),fcLines:S.fcLines.filter(f=>f.parentRef==='contract:'+id||poIds.includes(f.poId)),forecast:{}};
+  b.fcLines.forEach(f=>Object.keys(S.forecast).forEach(k=>{ if(k.startsWith('fcline:'+f.id+'|')) b.forecast[k]=S.forecast[k]; })); return b; }
+function poBundle(id){ const lineIds=S.poLines.filter(l=>l.poId===id).map(l=>l.id);
+  const b={pos:[byId(S.pos,id)],poLines:S.poLines.filter(l=>lineIds.includes(l.id)),invoices:S.invoices.filter(i=>lineIds.includes(i.poLineId)),
+    fcLines:S.fcLines.filter(f=>f.parentRef==='po:'+id||f.poId===id),forecast:{}};
+  b.fcLines.forEach(f=>Object.keys(S.forecast).forEach(k=>{ if(k.startsWith('fcline:'+f.id+'|')) b.forecast[k]=S.forecast[k]; })); return b; }
+function lineBundle(id){ const b={poLines:[byId(S.poLines,id)],invoices:S.invoices.filter(i=>i.poLineId===id),fcLines:S.fcLines.filter(f=>f.poLineId===id),forecast:{}}; return b; }
+function fcLineBundle(id){ const b={fcLines:[byId(S.fcLines,id)],forecast:{}}; Object.keys(S.forecast).forEach(k=>{ if(k.startsWith('fcline:'+id+'|')) b.forecast[k]=S.forecast[k]; }); return b; }
 const contractOf=id=>byId(S.contracts,id), poOf=id=>byId(S.pos,id), lineOf=id=>byId(S.poLines,id);
 const linesOfPO=poId=>S.poLines.filter(l=>l.poId===poId);
 const posOfContract=cId=>S.pos.filter(p=>p.contractId===cId);
@@ -555,7 +614,7 @@ function allEntities(){ const out=[];
   S.contracts.forEach(c=>out.push({ref:'contract:'+c.id,label:c.supplier+' — '+(c.contractNumber||'no #'),sub:money(contractCurrent(c))+(c.archived?' · archived':''),ty:'Contract'}));
   S.pos.forEach(p=>{const c=contractOf(p.contractId);out.push({ref:'po:'+p.id,label:'PO '+(p.poNumber||'?'),sub:c?c.supplier:'',ty:'PO'});});
   S.poLines.forEach(l=>{const p=poOf(l.poId);out.push({ref:'poline:'+l.id,label:'PO '+(p?p.poNumber:'?')+' / line '+(l.lineNo||'?'),sub:money(l.value),ty:'PO line'});});
-  S.budget.forEach(b=>out.push({ref:'budget:'+b.id,label:b.what||'(budget line)',sub:b.where||'',ty:'Budget'}));
+  S.budget.forEach(b=>out.push({ref:'budget:'+b.id,label:b.what||'(budget line)',sub:'',ty:'Budget'}));
   S.invoices.forEach(i=>out.push({ref:'invoice:'+i.id,label:'Inv '+(i.invoiceNumber||'?'),sub:money(i.value),ty:'Invoice'}));
   return out;
 }
@@ -788,10 +847,7 @@ ACTIONS.settings=()=>{
       <input value="${esc(s.name)}" onchange="updSimple('${coll}','${s.id}','name',this.value)" style="flex:1">
       <button class="btn sm ghost danger" onclick="delSimple('${coll}','${s.id}')">✕</button></div>`).join('');
   modal(`<div class="m-h"><h3>Settings</h3></div><div class="m-b">
-    <div style="display:flex;gap:14px;flex-wrap:wrap">
-      <label class="f" style="max-width:150px"><span>Currency symbol</span><input value="${esc(S.programme.currency)}" data-bind="programme.currency" data-norerender="1"></label>
-      <label class="f" style="max-width:220px"><span>Label for “Where” field</span><input value="${esc(S.settings.whereLabel||'Where')}" onchange="setWhereLabel(this.value)" placeholder="e.g. Site, Region, Workstream"></label>
-    </div>
+    <label class="f" style="max-width:150px"><span>Currency symbol</span><input value="${esc(S.programme.currency)}" data-bind="programme.currency" data-norerender="1"></label>
     <h3 style="margin:14px 0 8px">Task states</h3>${ts}
     <button class="btn sm" onclick="addState()">+ Add state</button>
     <h3 style="margin:18px 0 8px">Task priorities <span class="muted small" style="font-weight:400">(top = most urgent)</span></h3>${simpleList(S.settings.taskPriorities||[],'taskPriorities')}
@@ -807,7 +863,6 @@ ACTIONS.settings=()=>{
     <button class="btn sm danger" style="margin-top:8px" data-act="deleteProgramme">Delete this programme from this browser</button>
   </div><div class="m-f"><button class="btn primary" data-act="closeModal">Done</button></div>`);
 };
-window.setWhereLabel=v=>{ S.settings.whereLabel=v.trim()||'Where'; save(); render(); };
 window.updState=(id,k,v)=>{ const s=byId(S.settings.taskStates,id); if(s){s[k]=v;save();render();} };
 window.delState=id=>{ if(S.settings.taskStates.length<=1) return toast('Keep at least one state');
   S.settings.taskStates=S.settings.taskStates.filter(s=>s.id!==id); save(); ACTIONS.settings(); render(); };
@@ -818,6 +873,24 @@ window.addTag=()=>{ S.settings.eventTags.push({id:uid(),name:'New tag',color:'#b
 window.updSimple=(coll,id,k,v)=>{ const s=byId(S.settings[coll]||[],id); if(s){s[k]=v;save();render();} };
 window.delSimple=(coll,id)=>{ S.settings[coll]=(S.settings[coll]||[]).filter(s=>s.id!==id); save(); ACTIONS.settings(); render(); };
 window.addSimple=(coll,name)=>{ (S.settings[coll]=S.settings[coll]||[]).push({id:uid(),name,color:'#5b6b7a'}); save(); ACTIONS.settings(); };
+ACTIONS.trash=()=>{
+  const items=S.trash||[];
+  modal(`<div class="m-h"><h3>Trash <span class="muted small" style="font-weight:400;font-family:var(--sans)">— recently deleted, newest first</span></h3></div><div class="m-b">
+    ${items.length?items.map(e=>`<div class="settings-row" style="gap:10px">
+      <span class="badge">${esc(e.kind)}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.label)}</span>
+      <span class="muted small nowrap">${new Date(e.when).toLocaleString('en-NZ',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span>
+      <button class="btn sm" data-act="restoreTrash" data-id="${e.id}">Restore</button>
+      <button class="btn sm ghost danger" data-act="purgeTrash" data-id="${e.id}" title="Delete permanently">✕</button></div>`).join('')
+      :'<div class="empty">Trash is empty. Deleted contracts, POs, lines, invoices, forecast lines, tasks, events, notes pages and links land here so you can restore them.</div>'}
+  </div><div class="m-f">
+    ${items.length?'<button class="btn ghost danger" data-act="emptyTrash" style="margin-right:auto">Empty trash</button>':''}
+    <button class="btn primary" data-act="closeModal">Done</button></div>`);
+};
+ACTIONS.restoreTrash=t=>{ restoreTrash(t.dataset.id); ACTIONS.trash(); };
+ACTIONS.purgeTrash=t=>{ S.trash=S.trash.filter(e=>e.id!==t.dataset.id); save(); ACTIONS.trash(); refreshTrashCount(); };
+ACTIONS.emptyTrash=()=>{ if(!confirm('Permanently empty the trash? This cannot be undone.')) return; S.trash=[]; save(); closeModal(); refreshTrashCount(); };
+function refreshTrashCount(){ const el=$('#trashCount'); if(el) el.textContent=(S.trash&&S.trash.length)?' '+S.trash.length:''; }
 ACTIONS.deleteProgramme=()=>{
   if(!confirm('Delete "'+S.programme.name+'" from this browser? A saved .json file is unaffected.')) return;
   localStorage.removeItem(lsKey); localStorage.removeItem('progapp:last'); closeModal(); location.reload();
@@ -838,8 +911,7 @@ const VIEW_TEMPLATES=[
   {id:'contractreg',name:'Contract register',cols:['supplier','contract','po','line','current','end','actuals'],groupBy:'contract',filter:''},
 ];
 function activeView(){ return VIEW_TEMPLATES.find(v=>v.id===S.ui.view)||byId(S.views,S.ui.view)||VIEW_TEMPLATES[0]; }
-const whereLabel=()=>S.settings.whereLabel||'Where';
-const colLabel=c=>c.k==='where'?whereLabel():c.label;
+const colLabel=c=>c.label;
 
 function renderBudget(v){
   const sub=S.ui.budgetTab||'lines';
@@ -861,7 +933,7 @@ function overviewRows(){
   S.contracts.forEach(c=>{
     const poList=posOfContract(c.id);
     rows.push({ref:'contract:'+c.id,kind:'Contract',archived:!!c.archived,
-      what:c.what||c.contractNumber||c.supplier||'',where:c.where||'',supplier:c.supplier||'',contractNo:c.contractNumber||'',
+      what:c.what||c.contractNumber||c.supplier||'',supplier:c.supplier||'',contractNo:c.contractNumber||'',
       poNo:poList.map(p=>p.poNumber).filter(Boolean).join(', '),
       lineCount:poList.reduce((s,p)=>s+linesOfPO(p.id).length,0),
       orig:parseNum(c.totalValue),vars:contractVarsSum(c),current:contractCurrent(c),
@@ -869,14 +941,14 @@ function overviewRows(){
   });
   standalonePOs().forEach(p=>{
     rows.push({ref:'po:'+p.id,kind:'Standalone PO',archived:!!p.archived,
-      what:p.description||'',where:p.where||'',supplier:p.supplier||'',contractNo:'',
+      what:p.description||'',supplier:p.supplier||'',contractNo:'',
       poNo:p.poNumber||'',lineCount:linesOfPO(p.id).length,
       orig:poLinesSum(p.id),vars:0,current:poLinesSum(p.id),
       endDate:'',actuals:poActuals(p.id),notes:''});
   });
   S.budget.forEach(r=>{ const d=rowCalc(r); // legacy manual lines
     rows.push({ref:'budget:'+r.id,kind:'Manual',archived:!!r.archived,legacy:true,id:r.id,
-      what:r.what||'',where:r.where||'',supplier:d.supplier,contractNo:d.contractNo,
+      what:r.what||'',supplier:d.supplier,contractNo:d.contractNo,
       poNo:d.poNo,lineCount:'',orig:d.orig,vars:d.vars,current:d.current,
       endDate:d.endDate,actuals:d.actuals,notes:r.notes||''});
   });
@@ -902,16 +974,15 @@ function renderBudgetLines(){
   const cols=BUDGET_COLS.filter(c=>view.cols.includes(c.k));
   let rows=overviewRows().filter(r=>S.ui.budgetArch==='show'||(S.ui.budgetArch==='only'?r.archived:!r.archived));
   if(view.filter){ const q=view.filter.toLowerCase();
-    rows=rows.filter(r=>[r.what,r.where,r.supplier,r.contractNo,r.poNo,r.notes].join(' ').toLowerCase().includes(q)); }
+    rows=rows.filter(r=>[r.what,r.supplier,r.contractNo,r.poNo,r.notes].join(' ').toLowerCase().includes(q)); }
   const groups={};
   const gkey=r=>{ if(!view.groupBy) return ''; if(view.groupBy==='supplier') return r.supplier||'(no supplier)';
-    if(view.groupBy==='where') return r.where||'(no location)'; if(view.groupBy==='contract') return r.contractNo?r.supplier+' — '+r.contractNo:'(no contract)'; return ''; };
+    if(view.groupBy==='contract') return r.contractNo?r.supplier+' — '+r.contractNo:'(no contract)'; return ''; };
   rows.forEach(x=>{ const k=gkey(x); (groups[k]=groups[k]||[]).push(x); });
 
   const cell=(r,c)=>{
     switch(c.k){
       case 'what': return `<td>${esc(r.what)||'<span class="muted small">'+r.kind+'</span>'}</td>`;
-      case 'where': return `<td>${esc(r.where)}</td>`;
       case 'supplier': return `<td class="nowrap">${esc(r.supplier)}</td>`;
       case 'contract': return `<td class="nowrap">${esc(r.contractNo)||'<span class="muted">—</span>'}</td>`;
       case 'po': return `<td class="small">${esc(r.poNo)||'<span class="muted">—</span>'}</td>`;
@@ -948,7 +1019,7 @@ function renderBudgetLines(){
       <button class="btn primary" data-act="contractModal">+ Add a contract</button>
       <button class="btn" data-act="importCSV">📥 Import from CSV</button></div></div>`;
 }
-ACTIONS.delBudgetRow=t=>{ if(!confirm('Delete this budget line? (Archiving keeps it recoverable.)')) return; S.budget=S.budget.filter(b=>b.id!==t.dataset.id); save(); render(); };
+ACTIONS.delBudgetRow=t=>{ const r=byId(S.budget,t.dataset.id); if(!confirm('Delete this budget line? You can restore it from Trash.')) return; trashPush('Budget line',(r&&r.what)||'Budget line',{budget:[r]}); S.budget=S.budget.filter(b=>b.id!==t.dataset.id); save(); render(); };
 ACTIONS.archBudget=t=>{ const r=byId(S.budget,t.dataset.id); if(r){ r.archived=!r.archived; save(); render(); toast(r.archived?'Budget line archived':'Budget line restored'); } };
 ACTIONS.showBacklinks=t=>{ const refs=backlinksTo(t.dataset.ref);
   modal(`<div class="m-h"><h3>Linked from</h3></div><div class="m-b">${refs.map(r=>r.startsWith('note:')?`<div style="margin:4px 0"><span class="chip" data-goto="${esc(r)}"><span class="ic">📄</span>${esc((byId(S.notes,r.slice(5))||{}).name||'Notes')}</span></div>`:`<div style="margin:4px 0">${chipHTML(r)}</div>`).join('')||'<div class="empty">No links</div>'}</div><div class="m-f"><button class="btn" data-act="closeModal">Close</button></div>`); };
@@ -1004,51 +1075,61 @@ ACTIONS.delView=t=>{ S.views=S.views.filter(v=>v.id!==t.dataset.id); S.ui.view='
 /* ----- contracts / POs / lines / invoices ----- */
 const STRUCT_TEMPLATES=[
   {id:'active',name:'Active'},{id:'all',name:'Everything (incl. archived)'},
-  {id:'ending90',name:'Ending within 90 days'},{id:'unrec',name:'Unreconciled'},{id:'archived',name:'Archived only'},
+  {id:'unrec',name:'Unreconciled'},{id:'archived',name:'Archived only'},
 ];
+/* shared dropdown filter option lists */
+const uniq=a=>[...new Set(a.filter(x=>x!=null&&x!==''))].sort((x,y)=>String(x).localeCompare(String(y)));
+const supplierOptions=()=>uniq([...S.contracts.map(c=>c.supplier),...S.pos.filter(p=>!p.contractId).map(p=>p.supplier)]);
+const contractNoOptions=()=>uniq(S.contracts.map(c=>c.contractNumber));
+const wbsOptions=()=>uniq(S.poLines.map(l=>l.wbs));
+function filterSelect(id,label,value,options){ return `<select data-fsel="${id}" title="Filter by ${label}"><option value="">${label}: all</option>${options.map(o=>`<option value="${esc(o)}" ${value===o?'selected':''}>${esc(o)}</option>`).join('')}</select>`; }
+function contractMatchesF(c,F){ if(F.supplier&&c.supplier!==F.supplier) return false;
+  if(F.contract&&c.contractNumber!==F.contract) return false;
+  if(F.wbs&&!posOfContract(c.id).some(p=>linesOfPO(p.id).some(l=>l.wbs===F.wbs))) return false; return true; }
+function poMatchesF(p,F){ if(F.supplier&&(p.supplier||'')!==F.supplier) return false;
+  if(F.contract) return false; // standalone POs have no contract number
+  if(F.wbs&&!linesOfPO(p.id).some(l=>l.wbs===F.wbs)) return false; return true; }
 function structModeOf(viewId){ return STRUCT_TEMPLATES.some(t=>t.id===viewId)?viewId:(byId(S.structViews,viewId)||{}).mode||'active'; }
 function structVisible(archived,mode){ return mode==='all'?true:(mode==='archived'?!!archived:!archived); }
 function structTextMatch(strings,q){ return !q||strings.join(' ').toLowerCase().includes(q); }
 function renderStructure(){
   const viewId=S.ui.structView||'active';
   const custom=byId(S.structViews,viewId);
-  if(custom&&S.ui.structFilter===undefined) S.ui.structFilter=custom.filter;
   const mode=structModeOf(viewId);
-  const q=(S.ui.structFilter||'').toLowerCase();
+  const F=S.ui.structF;
   $('#budget-tools').innerHTML=`
     <select data-act="none" id="structViewSel" title="View">
       ${STRUCT_TEMPLATES.map(t=>`<option value="${t.id}" ${viewId===t.id?'selected':''}>${esc(t.name)}</option>`).join('')}
       ${S.structViews.length?'<optgroup label="Saved views">'+S.structViews.map(t=>`<option value="${t.id}" ${viewId===t.id?'selected':''}>${esc(t.name)}</option>`).join('')+'</optgroup>':''}
     </select>
-    <input data-bind="ui.structFilter" value="${esc(S.ui.structFilter||'')}" placeholder="Filter… (supplier, number, WBS)" style="width:200px">
-    <button class="btn sm" data-act="saveStructView" title="Save the current filter as a named view">💾 View</button>
-    ${custom?`<button class="btn sm ghost danger" data-act="delStructView" data-id="${custom.id}" title="Delete saved view">✕</button>`:''}
+    ${filterSelect('s-supplier','Supplier',F.supplier,supplierOptions())}
+    ${filterSelect('s-contract','Contract #',F.contract,contractNoOptions())}
+    ${filterSelect('s-wbs','WBS',F.wbs,wbsOptions())}
+    ${(F.supplier||F.contract||F.wbs)?'<button class="btn sm ghost" data-act="structClearF">clear</button>':''}
     <button class="btn sm" data-act="poModal" title="Add a PO with no contract">+ PO (standalone)</button>
     <button class="btn sm primary" data-act="contractModal">+ Contract</button>`;
-  $('#structViewSel').onchange=e=>{ S.ui.structView=e.target.value; const cv=byId(S.structViews,e.target.value); if(cv) S.ui.structFilter=cv.filter; save(); render(); };
+  $('#structViewSel').onchange=e=>{ S.ui.structView=e.target.value; save(); render(); };
+  $$('#budget-tools [data-fsel]').forEach(sel=>sel.onchange=e=>{ const k=e.target.dataset.fsel.slice(2); S.ui.structF[k]=e.target.value; save(); render(); });
 
-  const today=todayStr(), soon=addDays(today,90);
   const contracts=S.contracts.filter(c=>{
     if(!structVisible(c.archived,mode)) return false;
-    if(mode==='ending90'&&!(c.endDate&&c.endDate<=soon)) return false;
     if(mode==='unrec'){ const has=posOfContract(c.id).some(p=>linesOfPO(p.id).length); if(!has||Math.abs(contractCurrent(c)-contractLinesSum(c.id))<0.005) return false; }
-    const poStr=posOfContract(c.id).map(p=>p.poNumber+' '+linesOfPO(p.id).map(l=>l.lineNo+' '+(l.wbs||'')+' '+(l.description||'')).join(' ')).join(' ');
-    return structTextMatch([c.supplier,c.supplierNumber,c.contractNumber,c.notes||'',poStr],q);
+    return contractMatchesF(c,F);
   });
   const cards=contracts.map(c=>contractCardHTML(c,mode)).join('');
-  const standalone=standalonePOs().filter(p=>structVisible(p.archived,mode)&&mode!=='ending90'&&mode!=='unrec'
-    &&structTextMatch([p.poNumber,p.supplier||'',p.description||'',linesOfPO(p.id).map(l=>l.lineNo+' '+(l.wbs||'')).join(' ')],q));
+  const standalone=standalonePOs().filter(p=>structVisible(p.archived,mode)&&mode!=='unrec'&&poMatchesF(p,F));
   const saCard=standalone.length?`<div class="card contract-card">
       <div class="card-h"><span class="title">Standalone POs</span><span class="muted small">no contract</span>
       <span class="sp" style="flex:1"></span><button class="btn sm" data-act="poModal">+ PO</button></div>
-      <div class="card-b">${standalone.map(p=>poBlockHTML(p,true)).join('')}</div></div>`:'';
+      <div class="card-b">${standalone.map(p=>poBlockHTML(p,true,mode)).join('')}</div></div>`:'';
   $('#budget-body').innerHTML=(cards+saCard)||`<div class="card"><div class="empty">${S.contracts.length||S.pos.length?'Nothing matches this view / filter.':'No contracts yet.'}<br><br>
     <button class="btn primary" data-act="contractModal">+ Add a contract</button>
     <button class="btn" data-act="poModal">+ Add a standalone PO</button>
     <button class="btn" data-act="importCSV">📥 Import from CSV</button></div></div>`;
 }
-function poBlockHTML(p,showSupplier){
-  const lines=linesOfPO(p.id);
+function poBlockHTML(p,showSupplier,mode){
+  mode=mode||'active';
+  const lines=linesOfPO(p.id).filter(l=>structVisible(l.archived,mode));
   const lrows=lines.map(l=>{
     const invs=invoicesOfLine(l.id);
     const invHTML=invs.map(i=>`<div class="inv" data-anchor="invoice:${i.id}">
@@ -1080,8 +1161,7 @@ function poBlockHTML(p,showSupplier){
     <div class="po-h"><span class="dragh" draggable="true" data-drag="pos:${p.id}" title="Drag to reorder">⠿</span>
       <span class="fc-caret" data-act="tglPO" data-id="${p.id}" title="${folded?'Expand':'Collapse'} PO">${folded?'▶':'▼'}</span>
       <b>PO ${esc(p.poNumber||'?')}</b>${p.archived?'<span class="badge">archived</span>':''}
-      ${showSupplier?`<input data-bind="pos.${p.id}.supplier" value="${esc(p.supplier||'')}" placeholder="Supplier" style="width:130px;border-color:transparent;background:transparent">
-      <input data-bind="pos.${p.id}.where" value="${esc(p.where||'')}" placeholder="${esc(whereLabel())}" style="width:110px;border-color:transparent;background:transparent">`:''}
+      ${showSupplier?`<input data-bind="pos.${p.id}.supplier" value="${esc(p.supplier||'')}" placeholder="Supplier" style="width:150px;border-color:transparent;background:transparent">`:''}
       <input data-bind="pos.${p.id}.description" value="${esc(p.description||'')}" placeholder="Description" style="flex:1;border-color:transparent;background:transparent">
       <span class="muted small nowrap">${lines.length} line${lines.length===1?'':'s'} · ${money(pSum)}</span>
       <button class="btn sm ghost" data-act="addLine" data-po="${p.id}">+ line</button>
@@ -1100,7 +1180,7 @@ function contractCardHTML(c,mode){
     :`<span class="badge ${diff>0?'warn':'bad'}" title="Current contract value ${money(cv)} vs PO lines ${money(cSum)}">${diff>0?'△ '+money(diff)+' unallocated':'△ lines exceed contract by '+money(-diff)}</span>`;
   const folded=!!S.ui.structCollapsed[c.id];
   const poCount=posOfContract(c.id).length, lnCount=posOfContract(c.id).reduce((s,p)=>s+linesOfPO(p.id).length,0);
-  const pos=folded?'':posOfContract(c.id).filter(p=>structVisible(p.archived,mode)).map(p=>poBlockHTML(p,false)).join('');
+  const pos=folded?'':posOfContract(c.id).filter(p=>structVisible(p.archived,mode)).map(p=>poBlockHTML(p,false,mode)).join('');
   return `<div class="card contract-card ${c.archived?'arch':''}" data-anchor="contract:${c.id}" data-drop="contracts:${c.id}">
     <div class="card-h"><span class="dragh" draggable="true" data-drag="contracts:${c.id}" title="Drag to reorder">⠿</span>
       <span class="fc-caret" data-act="tglContract" data-id="${c.id}" title="${folded?'Expand':'Collapse'} contract">${folded?'▶':'▼'}</span>
@@ -1120,6 +1200,7 @@ ACTIONS.saveStructView=()=>{ const name=prompt('Name this view (saves the curren
   S.structViews.push({id:uid(),name:name.trim(),filter:S.ui.structFilter||'',mode:structModeOf(S.ui.structView||'active')});
   S.ui.structView=S.structViews[S.structViews.length-1].id; save(); render(); toast('View saved'); };
 ACTIONS.delStructView=t=>{ S.structViews=S.structViews.filter(v=>v.id!==t.dataset.id); S.ui.structView='active'; save(); render(); };
+ACTIONS.structClearF=()=>{ S.ui.structF={supplier:'',wbs:'',contract:''}; save(); render(); };
 ACTIONS.archContract=t=>{ const c=contractOf(t.dataset.id); if(c){ c.archived=!c.archived; save(); render(); toast(c.archived?'Contract archived':'Contract restored'); } };
 ACTIONS.archPO=t=>{ const p=poOf(t.dataset.id); if(p){ p.archived=!p.archived; save(); render(); toast(p.archived?'PO archived':'PO restored'); } };
 ACTIONS.archLine=t=>{ const l=lineOf(t.dataset.id); if(l){ l.archived=!l.archived; save(); render(); toast(l.archived?'PO line archived':'PO line restored'); } };
@@ -1131,8 +1212,7 @@ ACTIONS.contractModal=t=>{ const c=t&&t.dataset.id?contractOf(t.dataset.id):null
       <label class="f"><span>Supplier number</span><input name="supplierNumber" value="${esc(c?c.supplierNumber:'')}"></label>
       <label class="f"><span>Contract number</span><input name="contractNumber" value="${esc(c?c.contractNumber:'')}"></label>
       <label class="f"><span>Total value (original)</span><input name="totalValue" value="${c&&c.totalValue?fmt(c.totalValue):''}" placeholder="0"></label>
-      <label class="f"><span>For what (shows on Overview)</span><input name="what" value="${esc(c?c.what||'':'')}"></label>
-      <label class="f"><span>${esc(whereLabel())}</span><input name="where" value="${esc(c?c.where||'':'')}"></label>
+      <label class="f"><span>Contract name (shows on Overview)</span><input name="what" value="${esc(c?c.what||'':'')}"></label>
       <label class="f"><span>Start date</span><input type="date" name="startDate" value="${esc(c?c.startDate||'':'')}"></label>
       <label class="f"><span>Current end date</span><input type="date" name="endDate" value="${esc(c?c.endDate||'':'')}"></label>
     </div>
@@ -1142,53 +1222,78 @@ ACTIONS.contractModal=t=>{ const c=t&&t.dataset.id?contractOf(t.dataset.id):null
 };
 FORMS.saveContract=f=>{ const id=f.id&&f.id.value;
   const data={supplier:f.supplier.value.trim(),supplierNumber:f.supplierNumber.value.trim(),contractNumber:f.contractNumber.value.trim(),
-    what:f.what.value.trim(),where:f.where.value.trim(),
+    what:f.what.value.trim(),
     totalValue:parseNum(f.totalValue.value),startDate:f.startDate.value,endDate:f.endDate.value,notes:f.notes.value};
   if(id){ Object.assign(contractOf(id),data); } else S.contracts.push({id:uid(),variations:[],archived:false,...data});
   save(); closeModal(); render();
 };
-ACTIONS.delContract=t=>{ const id=t.dataset.id; const nPos=posOfContract(id).length;
-  if(!confirm('Delete this contract'+(nPos?' and its '+nPos+' PO(s), lines and invoices':'')+'?')) return;
+ACTIONS.delContract=t=>{ const id=t.dataset.id; const c=contractOf(id); const nPos=posOfContract(id).length;
+  if(!confirm('Delete this contract'+(nPos?' and its '+nPos+' PO(s), lines and invoices':'')+'? You can restore it from Trash.')) return;
+  trashPush('Contract',(c&&(c.supplier+' '+(c.contractNumber||'')))||'Contract',contractBundle(id));
   const poIds=posOfContract(id).map(p=>p.id); const lineIds=S.poLines.filter(l=>poIds.includes(l.poId)).map(l=>l.id);
   S.invoices=S.invoices.filter(i=>!lineIds.includes(i.poLineId));
   S.poLines=S.poLines.filter(l=>!poIds.includes(l.poId));
+  const fcIds=S.fcLines.filter(f=>f.parentRef==='contract:'+id||poIds.includes(f.poId)).map(f=>f.id);
+  fcIds.forEach(fid=>Object.keys(S.forecast).forEach(k=>{ if(k.startsWith('fcline:'+fid+'|')) delete S.forecast[k]; }));
+  S.fcLines=S.fcLines.filter(f=>!fcIds.includes(f.id));
   S.pos=S.pos.filter(p=>p.contractId!==id);
   S.contracts=S.contracts.filter(c=>c.id!==id);
   S.budget.forEach(b=>{ if(b.contractId===id){ b.contractId='';b.poId='';b.poLineId=''; } });
-  S.fcLines=S.fcLines.filter(f=>f.parentRef!=='contract:'+id);
   save(); render();
 };
-ACTIONS.poModal=t=>{ const cid=(t&&t.dataset.contract)||'';
+let poModalLines=[];
+ACTIONS.poModal=t=>{ const cid=(t&&t.dataset.contract)||''; const c=cid?contractOf(cid):null;
+  poModalLines=[{lineNo:'10',value:'',wbs:'',spendCode:'',glCode:'',description:''}];
   modal(`<div class="m-h"><h3>New purchase order</h3></div><div class="m-b">
-    <form data-form="savePO" id="poform">
-    <label class="f"><span>PO number</span><input name="poNumber" required></label>
-    <label class="f"><span>Contract</span><select name="contractId" onchange="document.getElementById('po-supplier-f').style.display=this.value?'none':'block'">
-      <option value="">— none (standalone PO) —</option>
-      ${S.contracts.filter(c=>!c.archived||c.id===cid).map(c=>`<option value="${c.id}" ${cid===c.id?'selected':''}>${esc((c.contractNumber||'no #')+' · '+c.supplier)}</option>`).join('')}
-    </select></label>
-    <label class="f" id="po-supplier-f" style="display:${cid?'none':'block'}"><span>Supplier (for standalone POs)</span><input name="supplier"></label>
-    <label class="f"><span>Description</span><input name="description"></label></form>
+    <form data-form="savePO" id="poform"><input type="hidden" name="contractId" value="${esc(cid)}">
+    <div class="grid2">
+      <label class="f"><span>PO number</span><input name="poNumber" required></label>
+      <label class="f"><span>Contract</span><input value="${c?esc((c.contractNumber||'no #')+' · '+c.supplier):'n/a (standalone)'}" disabled></label>
+    </div>
+    ${cid?'':`<label class="f"><span>Supplier</span><input name="supplier"></label>`}
+    <label class="f"><span>Description</span><input name="description"></label>
+    <div class="small muted" style="margin:6px 0 4px">Lines</div>
+    <div id="po-lines"></div>
+    <button class="btn sm" type="button" data-act="poAddLineRow">+ Add line</button>
+    </form>
   </div><div class="m-f"><button class="btn" data-act="closeModal">Cancel</button>
   <button class="btn primary" type="submit" form="poform">Add PO</button></div>`);
+  drawPoModalLines();
   setTimeout(()=>{const i=$('#poform input[name=poNumber]'); if(i) i.focus();},50);
 };
-FORMS.savePO=f=>{ const cid=f.contractId.value;
-  S.pos.push({id:uid(),contractId:cid,supplier:cid?'':f.supplier.value.trim(),poNumber:f.poNumber.value.trim(),description:f.description.value.trim(),archived:false});
+function drawPoModalLines(){ const el=$('#po-lines'); if(!el) return;
+  el.innerHTML=poModalLines.map((l,i)=>`<div class="settings-row" data-i="${i}">
+    <input value="${esc(l.lineNo)}" placeholder="Line" style="width:52px" onchange="poLineField(${i},'lineNo',this.value)">
+    <input value="${esc(l.description)}" placeholder="Description" style="flex:1" onchange="poLineField(${i},'description',this.value)">
+    <input value="${esc(l.wbs)}" placeholder="WBS" style="width:90px" onchange="poLineField(${i},'wbs',this.value)">
+    <input value="${esc(l.spendCode)}" placeholder="Spend" style="width:70px" onchange="poLineField(${i},'spendCode',this.value)">
+    <input value="${esc(l.glCode)}" placeholder="GL" style="width:70px" onchange="poLineField(${i},'glCode',this.value)">
+    <input class="num" value="${esc(l.value)}" placeholder="Value" style="width:90px" onchange="poLineField(${i},'value',this.value)">
+    ${poModalLines.length>1?`<button class="btn sm ghost danger" type="button" onclick="poDelLineRow(${i})">✕</button>`:''}</div>`).join(''); }
+window.poLineField=(i,k,v)=>{ if(poModalLines[i]) poModalLines[i][k]=v; };
+window.poDelLineRow=i=>{ poModalLines.splice(i,1); drawPoModalLines(); };
+ACTIONS.poAddLineRow=()=>{ const n=(poModalLines.length+1)*10; poModalLines.push({lineNo:String(n),value:'',wbs:'',spendCode:'',glCode:'',description:''}); drawPoModalLines(); };
+FORMS.savePO=f=>{ const cid=f.contractId.value; const poId=uid();
+  S.pos.push({id:poId,contractId:cid,supplier:cid?'':(f.supplier?f.supplier.value.trim():''),poNumber:f.poNumber.value.trim(),description:f.description.value.trim(),archived:false});
+  poModalLines.forEach(l=>{ if(l.lineNo||l.value||l.wbs||l.description) S.poLines.push({id:uid(),poId,lineNo:l.lineNo||'',wbs:l.wbs||'',spendCode:l.spendCode||'',glCode:l.glCode||'',value:parseNum(l.value),description:l.description||'',archived:false}); });
   save(); closeModal(); render(); };
-ACTIONS.delPO=t=>{ const id=t.dataset.id; if(!confirm('Delete this PO, its lines and invoices?')) return;
+ACTIONS.delPO=t=>{ const id=t.dataset.id; const p=poOf(id); if(!confirm('Delete this PO, its lines and invoices? You can restore it from Trash.')) return;
+  trashPush('PO','PO '+((p&&p.poNumber)||'?'),poBundle(id));
   const lineIds=linesOfPO(id).map(l=>l.id);
+  const fcIds=S.fcLines.filter(f=>f.parentRef==='po:'+id||f.poId===id).map(f=>f.id);
+  fcIds.forEach(fid=>Object.keys(S.forecast).forEach(k=>{ if(k.startsWith('fcline:'+fid+'|')) delete S.forecast[k]; }));
+  S.fcLines=S.fcLines.filter(f=>!fcIds.includes(f.id));
   S.invoices=S.invoices.filter(i=>!lineIds.includes(i.poLineId));
   S.poLines=S.poLines.filter(l=>l.poId!==id);
   S.pos=S.pos.filter(p=>p.id!==id);
   S.budget.forEach(b=>{ if(b.poId===id){ b.poId='';b.poLineId=''; } });
-  S.fcLines=S.fcLines.filter(f=>f.parentRef!=='po:'+id);
-  S.fcLines.forEach(f=>{ if(f.poId===id){ f.poId=''; f.poLineId=''; } });
   save(); render();
 };
 ACTIONS.addLine=t=>{ const po=t.dataset.po; const n=linesOfPO(po).length+1;
   S.poLines.push({id:uid(),poId:po,lineNo:String(n*10),wbs:'',spendCode:'',glCode:'',value:0,description:''}); save(); render(); };
-ACTIONS.delLine=t=>{ const id=t.dataset.id; const nInv=invoicesOfLine(id).length;
-  if(nInv&&!confirm('Delete this PO line and its '+nInv+' invoice(s)?')) return;
+ACTIONS.delLine=t=>{ const id=t.dataset.id; const l=lineOf(id); const nInv=invoicesOfLine(id).length;
+  if(nInv&&!confirm('Delete this PO line and its '+nInv+' invoice(s)? You can restore it from Trash.')) return;
+  trashPush('PO line','Line '+((l&&l.lineNo)||'?'),lineBundle(id));
   S.invoices=S.invoices.filter(i=>i.poLineId!==id);
   S.poLines=S.poLines.filter(l=>l.id!==id);
   S.budget.forEach(b=>{ if(b.poLineId===id) b.poLineId=''; });
@@ -1215,7 +1320,9 @@ FORMS.saveInvoice=f=>{ const id=f.id&&f.id.value;
   if(id) Object.assign(byId(S.invoices,id),data); else S.invoices.push({id:uid(),...data});
   save(); closeModal(); render();
 };
-ACTIONS.delInvoice=t=>{ if(!confirm('Delete this invoice?')) return; S.invoices=S.invoices.filter(i=>i.id!==t.dataset.id); save(); render(); };
+ACTIONS.delInvoice=t=>{ const inv=byId(S.invoices,t.dataset.id); if(!confirm('Delete this invoice? You can restore it from Trash.')) return;
+  trashPush('Invoice','Inv '+((inv&&inv.invoiceNumber)||'?'),{invoices:[inv]});
+  S.invoices=S.invoices.filter(i=>i.id!==t.dataset.id); save(); render(); };
 
 /* ----- forecast & phasing (July–June financial year) ----- */
 function fyQuarter(y,m){ // FY runs Jul–Jun: Q1 FY27 = Jul–Sep 2026
@@ -1250,7 +1357,11 @@ const actualsInPeriod=(lineIds,p)=>S.invoices.filter(i=>lineIds.includes(i.poLin
 const fcEntry=(ref,key)=>S.forecast[ref+'|'+key];
 function fcOwn(ref,current,actuals,key){ const f=fcEntry(ref,key); if(!f) return 0;
   return f.mode==='pct'? (current-actuals)*f.v/100 : f.v; }
-function fcLineChild(f){ // a user-added forecast line: pick PO + line, name it with a 'for'
+function fcLineChild(f){ // a forecast line
+  if(f.parentRef==='planned'){ // planning item, not yet contracted — manual value
+    return {ref:'fcline:'+f.id,f,planned:true,label:f.forWhat||'(planned item)',
+      sub:'Planned'+(f.supplier?' · '+f.supplier:''),current:parseNum(f.plannedValue),actuals:0,lineIds:[]};
+  }
   const l=lineOf(f.poLineId), p=poOf(f.poId);
   const current=l?parseNum(l.value):0, actuals=l?lineInvoiced(l.id):0;
   return {ref:'fcline:'+f.id,f,label:f.forWhat||'(forecast line)',
@@ -1258,28 +1369,26 @@ function fcLineChild(f){ // a user-added forecast line: pick PO + line, name it 
     current,actuals,lineIds:l?[l.id]:[]};
 }
 const fcChildren=parentRef=>S.fcLines.filter(f=>f.parentRef===parentRef&&(S.ui.fcArch==='show'||!f.archived)).map(fcLineChild);
-function fcTopRows(){ // contracts + standalone POs, each with user-defined forecast lines beneath
-  const rows=[];
-  S.contracts.filter(c=>!c.archived).forEach(c=>{
+function fcTopRows(){ // contracts + standalone POs + a Planned bucket, each with forecast lines beneath
+  const F=S.ui.fcF; const rows=[];
+  S.contracts.filter(c=>!c.archived&&contractMatchesF(c,F)).forEach(c=>{
     rows.push({ref:'contract:'+c.id,label:(c.supplier||'Contract')+(c.contractNumber?' · '+c.contractNumber:''),sub:'Contract',
       current:contractCurrent(c),actuals:contractActuals(c.id),
       lineIds:posOfContract(c.id).flatMap(p=>linesOfPO(p.id).map(l=>l.id)),children:fcChildren('contract:'+c.id)});
   });
-  standalonePOs().filter(p=>!p.archived).forEach(p=>{
+  standalonePOs().filter(p=>!p.archived&&poMatchesF(p,F)).forEach(p=>{
     rows.push({ref:'po:'+p.id,label:'PO '+(p.poNumber||'?')+(p.supplier?' · '+p.supplier:''),sub:'Standalone PO',
       current:poLinesSum(p.id),actuals:poActuals(p.id),lineIds:linesOfPO(p.id).map(l=>l.id),children:fcChildren('po:'+p.id)});
   });
-  S.budget.filter(b=>!b.archived&&!b.contractId&&!b.poId&&!b.poLineId).forEach(b=>{
-    const d=rowCalc(b);
-    rows.push({ref:'budget:'+b.id,label:b.what||'(budget line)',sub:b.where||'Manual budget',current:d.current,actuals:0,lineIds:[],children:[]});
-  });
-  const q=(S.ui.fcFilter||'').toLowerCase();
-  return q?rows.filter(r=>(r.label+' '+r.sub).toLowerCase().includes(q)):rows;
+  if(!F.contract&&!F.wbs){ // Planned bucket (no contract/WBS to match against)
+    const pk=fcChildren('planned').filter(ch=>!F.supplier||(ch.f.supplier||'')===F.supplier);
+    if(!F.supplier||pk.length) rows.push({ref:'planned',label:'Planned (not yet contracted)',sub:'Planning',
+      current:pk.reduce((s,ch)=>s+ch.current,0),actuals:0,lineIds:[],children:pk,planned:true});
+  }
+  return rows;
 }
-function fcRollup(row,key){ // contract/PO rows = pure sum of their forecast lines; manual budget rows keep their own entry
-  const kids=(row.children||[]).reduce((s,ch)=>s+fcOwn(ch.ref,ch.current,ch.actuals,key),0);
-  if(row.ref.startsWith('contract:')||row.ref.startsWith('po:')) return kids;
-  return fcOwn(row.ref,row.current,row.actuals,key)+kids;
+function fcRollup(row,key){ // every parent row is a read-only sum of its forecast lines
+  return (row.children||[]).reduce((s,ch)=>s+fcOwn(ch.ref,ch.current,ch.actuals,key),0);
 }
 function fcCellHTML(ref,current,actuals,p,extra){
   extra=extra||{};
@@ -1299,36 +1408,54 @@ function fcCellHTML(ref,current,actuals,p,extra){
 function renderForecast(){
   const cfg=S.fcCfg, ps=periodList();
   const activeFcView=byId(S.fcViews,S.ui.fcView);
+  const F=S.ui.fcF;
   $('#budget-tools').innerHTML=`
-    <select data-act="none" id="fcViewSel" title="Saved forecast views">
-      <option value="">Current settings</option>
-      ${S.fcViews.map(v=>`<option value="${v.id}" ${S.ui.fcView===v.id?'selected':''}>${esc(v.name)}</option>`).join('')}
+    <span class="small muted nowrap">Quarterly (FY Jul–Jun)</span>
+    <select data-act="none" id="fcFY" title="Financial year (Jul–Jun)">
+      ${fyOptions().map(o=>`<option value="${o.start}" ${cfg.start===o.start?'selected':''}>${o.label}</option>`).join('')}
     </select>
-    <button class="btn sm" data-act="saveFcView" title="Save period settings + filter as a named view">💾 View</button>
-    ${activeFcView?`<button class="btn sm ghost danger" data-act="delFcView" data-id="${activeFcView.id}">✕</button>`:''}
-    <select data-act="none" id="fcFY" title="Jump to a financial year (Jul–Jun)">
-      <option value="">Financial year…</option>
-      ${fyOptions().map(o=>`<option value="${o.start}">${o.label}</option>`).join('')}
-    </select>
-    <select data-bind="fcCfg.gran"><option value="month" ${cfg.gran==='month'?'selected':''}>Monthly</option><option value="quarter" ${cfg.gran==='quarter'?'selected':''}>Quarterly (FY Jul–Jun)</option></select>
-    <input type="month" data-bind="fcCfg.start" value="${esc(cfg.start)}" title="First period">
-    <select data-bind="fcCfg.count" data-type="num">${[4,6,8,12,16,18,24].map(n=>`<option value="${n}" ${cfg.count===n?'selected':''}>${n} periods</option>`).join('')}</select>
-    <input data-bind="ui.fcFilter" value="${esc(S.ui.fcFilter||'')}" placeholder="Filter…" style="width:140px">
+    <select data-bind="fcCfg.count" data-type="num" title="How many quarters">${[4,8,12].map(n=>`<option value="${n}" ${cfg.count===n?'selected':''}>${n} quarters</option>`).join('')}</select>
+    ${filterSelect('f-supplier','Supplier',F.supplier,supplierOptions())}
+    ${filterSelect('f-contract','Contract #',F.contract,contractNoOptions())}
+    ${filterSelect('f-wbs','WBS',F.wbs,wbsOptions())}
+    ${(F.supplier||F.contract||F.wbs)?'<button class="btn sm ghost" data-act="fcClearF">clear</button>':''}
     <label class="small nowrap" title="Show archived forecast lines"><input type="checkbox" id="fcArchChk" ${S.ui.fcArch==='show'?'checked':''}> show archived</label>`;
   const fca=$('#fcArchChk'); if(fca) fca.onchange=e=>{ S.ui.fcArch=e.target.checked?'show':'active'; save(); render(); };
-  const fy=$('#fcFY'); if(fy) fy.onchange=e=>{ if(!e.target.value) return;
-    S.fcCfg.start=e.target.value; S.fcCfg.gran='quarter'; S.fcCfg.count=4; S.ui.fcView=''; save(); render(); };
-  $('#fcViewSel').onchange=e=>{ const v=byId(S.fcViews,e.target.value);
-    S.ui.fcView=e.target.value;
-    if(v){ S.fcCfg.gran=v.gran; S.fcCfg.start=v.start; S.fcCfg.count=v.count; S.ui.fcFilter=v.filter; }
-    save(); render(); };
+  const fy=$('#fcFY'); if(fy) fy.onchange=e=>{ S.fcCfg.start=e.target.value; S.fcCfg.gran='quarter'; save(); render(); };
+  $$('#budget-tools [data-fsel]').forEach(sel=>sel.onchange=e=>{ S.ui.fcF[e.target.dataset.fsel.slice(2)]=e.target.value; save(); render(); });
   const rows=fcTopRows();
-  if(!rows.length){ $('#budget-body').innerHTML=`<div class="card"><div class="empty">Nothing to forecast yet — add contracts (with PO lines) or budget lines first.</div></div>`; return; }
+  // committed lines (under a contract/PO) can be committed / in progress / complete; planned items are 'planned'
+  const committedStatuses=()=>(S.settings.fcStatuses||[]).filter(s=>s.id!=='planned');
+  const statusSelect=(f,opts)=>{ const stt=fcStatusOf(f.statusId);
+    return `<select data-bind="fcLines.${f.id}.statusId" title="Status" style="max-width:130px;${stt?`color:${stt.color};font-weight:600`:''}"><option value="">status…</option>${opts.map(s=>`<option value="${s.id}" ${f.statusId===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select>`; };
+  const dateFields=f=>`<label class="small muted" style="display:inline-flex;align-items:center;gap:2px">start <input type="date" data-bind="fcLines.${f.id}.startDate" value="${esc(f.startDate||'')}" style="width:130px"></label>
+        <label class="small muted" style="display:inline-flex;align-items:center;gap:2px">end <input type="date" data-bind="fcLines.${f.id}.endDate" value="${esc(f.endDate||'')}" style="width:130px"></label>`;
+  const lineTools=f=>`<td class="nowrap"><button class="btn sm ghost" data-act="spreadRow" data-ref="fcline:${f.id}" title="Spread remainder evenly over empty periods">↔</button>
+        <button class="btn sm ghost" data-act="archFcLine" data-id="${f.id}" title="${f.archived?'Unarchive':'Archive'} forecast line">${f.archived?'↩':'🗄'}</button>
+        <button class="btn sm ghost danger" data-act="delFcLine" data-id="${f.id}" title="Delete forecast line">✕</button></td>`;
   const childHTML=ch=>{ const f=ch.f;
     const cells=ps.map(p=>fcCellHTML(ch.ref,ch.current,ch.actuals,p,{act:actualsInPeriod(ch.lineIds,p),roll:0})).join('');
     const fcTot=ps.reduce((s,p)=>s+fcOwn(ch.ref,ch.current,ch.actuals,p.key),0);
+    if(ch.planned){ // planning item — manual value + free-text supplier, no PO
+      return `<tr data-anchor="${ch.ref}" class="fc-line ${f.archived?'arch':''}" data-drop="fcLines:${f.id}">
+        <td style="min-width:360px;padding-left:14px">
+          <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+          <span class="dragh" draggable="true" data-drag="fcLines:${f.id}">⠿</span>
+          <input data-bind="fcLines.${f.id}.forWhat" value="${esc(f.forWhat||'')}" placeholder="What for…" style="width:150px;flex:1;min-width:120px">
+          <input data-bind="fcLines.${f.id}.supplier" value="${esc(f.supplier||'')}" placeholder="Likely supplier" style="width:140px"></div>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:3px;padding-left:18px">
+          <span class="badge" style="background:#96a2ae1a;color:#5b6b7a">planning</span>
+          ${statusSelect(f,S.settings.fcStatuses||[])}${dateFields(f)}</div>
+        </td>
+        <td class="num nowrap"><input class="num" data-bind="fcLines.${f.id}.plannedValue" data-type="num" value="${f.plannedValue?fmt(f.plannedValue):''}" placeholder="est. value" style="width:100px"></td>
+        <td class="num nowrap muted small">—</td>
+        ${cells}
+        <td class="num nowrap">${money(fcTot)}</td>
+        <td class="num nowrap muted small">—</td>
+        ${lineTools(f)}</tr>`;
+    }
     const poOpts=(f.parentRef.startsWith('contract:')?posOfContract(f.parentRef.slice(9)):S.pos.filter(p=>'po:'+p.id===f.parentRef)).filter(p=>!p.archived||f.poId===p.id);
-    const sup=fcSupplier(f.parentRef), stt=fcStatusOf(f.statusId);
+    const sup=fcSupplier(f.parentRef);
     return `<tr data-anchor="${ch.ref}" class="fc-line ${f.archived?'arch':''}" data-drop="fcLines:${f.id}">
       <td style="min-width:360px;padding-left:14px">
         <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
@@ -1339,9 +1466,7 @@ function renderForecast(){
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:3px;padding-left:18px">
         ${sup?`<span class="muted small" title="Supplier (from ${f.parentRef.startsWith('contract:')?'contract':'PO'})">🏢 ${esc(sup)}</span>`:''}
-        <select data-bind="fcLines.${f.id}.statusId" title="Status" style="max-width:120px;${stt?`color:${stt.color};font-weight:600`:''}"><option value="">status…</option>${(S.settings.fcStatuses||[]).map(s=>`<option value="${s.id}" ${f.statusId===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
-        <label class="small muted" style="display:inline-flex;align-items:center;gap:2px">start <input type="date" data-bind="fcLines.${f.id}.startDate" value="${esc(f.startDate||'')}" style="width:130px"></label>
-        <label class="small muted" style="display:inline-flex;align-items:center;gap:2px">end <input type="date" data-bind="fcLines.${f.id}.endDate" value="${esc(f.endDate||'')}" style="width:130px"></label>
+        ${statusSelect(f,committedStatuses())}${dateFields(f)}
         </div>
       </td>
       <td class="num nowrap muted small" title="PO line value (shared if several forecast lines use this PO line)">${ch.lineIds.length?money(ch.current):'—'}</td>
@@ -1349,31 +1474,30 @@ function renderForecast(){
       ${cells}
       <td class="num nowrap">${money(fcTot)}</td>
       <td class="num nowrap muted small">—</td>
-      <td class="nowrap"><button class="btn sm ghost" data-act="spreadRow" data-ref="${ch.ref}" title="Spread PO line remainder evenly over empty periods">↔</button>
-        <button class="btn sm ghost" data-act="archFcLine" data-id="${f.id}" title="${f.archived?'Unarchive':'Archive'} forecast line">${f.archived?'↩':'🗄'}</button>
-        <button class="btn sm ghost danger" data-act="delFcLine" data-id="${f.id}" title="Delete forecast line">✕</button></td></tr>`;
+      ${lineTools(f)}</tr>`;
   };
   const rowHTML=row=>{
     const open=!!S.ui.fcOpen[row.ref];
-    const expandable=row.ref.startsWith('contract:')||row.ref.startsWith('po:');
     const cells=ps.map(p=>fcCellHTML(row.ref,row.current,row.actuals,p,
-      {act:actualsInPeriod(row.lineIds,p),roll:fcRollup(row,p.key),readonly:expandable})).join('');
+      {act:actualsInPeriod(row.lineIds,p),roll:fcRollup(row,p.key),readonly:true})).join('');
     const fcTot=ps.reduce((s,p)=>s+fcRollup(row,p.key),0);
     const variance=row.current-row.actuals-fcTot;
-    return `<tr data-anchor="${row.ref}">
+    return `<tr data-anchor="${row.ref}" class="${row.planned?'fc-planned':''}">
       <td class="nowrap" style="max-width:250px;overflow:hidden;text-overflow:ellipsis">
-        ${expandable?`<span class="fc-caret" data-act="fcToggle" data-ref="${row.ref}" title="Forecast line detail">${open?'▼':'▶'}</span> `:''}
-        <b>${esc(row.label)}</b>${row.sub?`<br><span class="muted small" style="margin-left:${expandable?'22px':'0'}">${esc(row.sub)}${(row.children||[]).length?' · '+row.children.length+' forecast line'+(row.children.length===1?'':'s'):''}</span>`:''}</td>
-      <td class="num nowrap">${money(row.current)}</td><td class="num nowrap">${money(row.actuals)}</td>
+        <span class="fc-caret" data-act="fcToggle" data-ref="${row.ref}" title="Forecast line detail">${open?'▼':'▶'}</span>
+        <b>${esc(row.label)}</b>${row.sub?`<br><span class="muted small" style="margin-left:22px">${esc(row.sub)}${(row.children||[]).length?' · '+row.children.length+' line'+(row.children.length===1?'':'s'):''}</span>`:''}</td>
+      <td class="num nowrap">${money(row.current)}</td><td class="num nowrap">${row.planned?'<span class="muted">—</span>':money(row.actuals)}</td>
       ${cells}
       <td class="num nowrap">${money(fcTot)}</td>
-      <td class="num nowrap">${Math.abs(variance)<.005?'<span class="badge ok">0</span>':`<span class="badge ${variance>0?'warn':'bad'}" title="${variance>0?'Unphased budget':'Phased above remaining budget'}">${money(variance)}</span>`}</td>
-      <td><button class="btn sm ghost" data-act="spreadRow" data-ref="${row.ref}" title="Spread remaining evenly over empty periods">↔</button></td></tr>`
+      <td class="num nowrap">${row.planned?'':(Math.abs(variance)<.005?'<span class="badge ok">0</span>':`<span class="badge ${variance>0?'warn':'bad'}" title="${variance>0?'Unphased budget':'Phased above remaining budget'}">${money(variance)}</span>`)}</td>
+      <td></td></tr>`
       +(open?(row.children||[]).map(childHTML).join('')
         +`<tr class="fc-addrow"><td colspan="${ps.length+6}">
-          <button class="btn sm ghost" data-act="addFcLine" data-parent="${row.ref}">+ Forecast line</button>
-          <button class="btn sm ghost" data-act="fcSeedLines" data-parent="${row.ref}" title="Add one forecast line per PO line that doesn't have one yet">+ one per PO line</button>
-          <span class="muted small">— several forecast lines can phase the same PO line; they wrap up into the row above (Σ)</span></td></tr>`:'');
+          ${row.planned
+            ?`<button class="btn sm ghost" data-act="addPlannedLine">+ Planned item</button><span class="muted small">— things still in planning; give an estimated value and it phases like the rest</span>`
+            :`<button class="btn sm ghost" data-act="addFcLine" data-parent="${row.ref}">+ Forecast line</button>
+              <button class="btn sm ghost" data-act="fcSeedLines" data-parent="${row.ref}" title="Add one forecast line per PO line that doesn't have one yet">+ one per PO line</button>
+              <span class="muted small">— committed by default; several lines can phase the same PO line (Σ)</span>`}</td></tr>`:'');
   };
   const body=rows.map(r=>rowHTML(r)).join('');
   const colTot=ps.map(p=>{ const fc=rows.reduce((s,r)=>s+fcRollup(r,p.key),0);
@@ -1394,13 +1518,17 @@ function handleForecastCell(el){ const [ref,key]=el.dataset.fc.split('|'); const
   save(); renderKeepFocus();
 }
 ACTIONS.fcToggle=t=>{ const ref=t.dataset.ref; S.ui.fcOpen[ref]=!S.ui.fcOpen[ref]; save(); render(); };
+ACTIONS.fcClearF=()=>{ S.ui.fcF={supplier:'',wbs:'',contract:''}; save(); render(); };
 ACTIONS.addFcLine=t=>{ const parentRef=t.dataset.parent;
-  S.fcLines.push({id:uid(),parentRef,poId:'',poLineId:'',forWhat:'',statusId:'',startDate:'',endDate:'',archived:false});
+  S.fcLines.push({id:uid(),parentRef,poId:'',poLineId:'',forWhat:'',supplier:'',statusId:'committed',startDate:'',endDate:'',archived:false});
   S.ui.fcOpen[parentRef]=true; save(); render(); };
+ACTIONS.addPlannedLine=()=>{ S.fcLines.push({id:uid(),parentRef:'planned',poId:'',poLineId:'',forWhat:'',supplier:'',plannedValue:0,statusId:'planned',startDate:'',endDate:'',archived:false});
+  S.ui.fcOpen['planned']=true; save(); render(); };
 ACTIONS.archFcLine=t=>{ const f=byId(S.fcLines,t.dataset.id); if(f){ f.archived=!f.archived; save(); render(); toast(f.archived?'Forecast line archived':'Forecast line restored'); } };
-ACTIONS.delFcLine=t=>{ const id=t.dataset.id;
+ACTIONS.delFcLine=t=>{ const id=t.dataset.id; const f=byId(S.fcLines,id);
   const hasEntries=Object.keys(S.forecast).some(k=>k.startsWith('fcline:'+id+'|'));
-  if(hasEntries&&!confirm('Delete this forecast line and its phased values?')) return;
+  if(hasEntries&&!confirm('Delete this forecast line and its phased values? You can restore it from Trash.')) return;
+  trashPush('Forecast line',(f&&f.forWhat)||'Forecast line',fcLineBundle(id));
   Object.keys(S.forecast).forEach(k=>{ if(k.startsWith('fcline:'+id+'|')) delete S.forecast[k]; });
   S.fcLines=S.fcLines.filter(f=>f.id!==id); save(); render(); };
 ACTIONS.fcSeedLines=t=>{ const parentRef=t.dataset.parent;
@@ -1408,7 +1536,7 @@ ACTIONS.fcSeedLines=t=>{ const parentRef=t.dataset.parent;
   let n=0;
   pos.filter(p=>!p.archived).forEach(p=>linesOfPO(p.id).filter(l=>!l.archived).forEach(l=>{
     if(!S.fcLines.some(f=>f.parentRef===parentRef&&f.poLineId===l.id)){
-      S.fcLines.push({id:uid(),parentRef,poId:p.id,poLineId:l.id,forWhat:l.description||''}); n++; }
+      S.fcLines.push({id:uid(),parentRef,poId:p.id,poLineId:l.id,forWhat:l.description||'',supplier:'',statusId:'committed',startDate:'',endDate:'',archived:false}); n++; }
   }));
   if(!n) return toast('Every PO line already has a forecast line');
   S.ui.fcOpen[parentRef]=true; save(); render(); toast(n+' forecast line'+(n===1?'':'s')+' added');
@@ -1564,7 +1692,9 @@ FORMS.saveEvent=f=>{ const id=f.id&&f.id.value;
   if(id) Object.assign(byId(S.events,id),data); else S.events.push({id:uid(),...data});
   save(); closeModal(); render();
 };
-ACTIONS.delEvent=t=>{ if(!confirm('Delete this event?')) return; S.events=S.events.filter(e=>e.id!==t.dataset.id); save(); closeModal(); render(); };
+ACTIONS.delEvent=t=>{ const e=byId(S.events,t.dataset.id); if(!confirm('Delete this event? You can restore it from Trash.')) return;
+  trashPush('Event',(e&&e.title)||'Event',{events:[e]});
+  S.events=S.events.filter(e=>e.id!==t.dataset.id); save(); closeModal(); render(); };
 
 /* ================= ACTIONS (tasks) ================= */
 function findTask(id,list,parent){ list=list||S.tasks;
@@ -1636,7 +1766,7 @@ function taskHTML(t,hide,depth){
         </span></div>${kidsHTML}</div>`;
   }
   const st=stateOf(t.stateId); const today=todayStr(); const pr=priorityOf(t.priorityId);
-  const dueCls=t.due&&!st.done?(t.due<today?'due-over':(t.due<=addDays(today,3)?'due-soon':'')):'';
+  const dueCls=dueClass(t.due,st.done);
   return `<div data-tid="${t.id}" data-drop="tasks:${t.id}">
     <div class="task-row ${st.done?'done':''}" data-anchor="task:${t.id}">
       ${drag}${caret}
@@ -1657,7 +1787,7 @@ function taskHTML(t,hide,depth){
           <button class="btn sm ghost danger" data-act="delTask" data-id="${t.id}" title="Delete">✕</button>
         </span>
         <input type="date" class="${dueCls}" value="${esc(t.due||'')}" data-tdue="${t.id}" title="Due date">
-        <span class="small muted nowrap" title="Last actioned">↻ ${t.lastActioned?dstr(t.lastActioned):'—'}</span>
+        <span title="Last actioned — edit if you followed up on a different day">↻ <input type="date" class="tlast" value="${esc(t.lastActioned||'')}" data-tlast="${t.id}"></span>
       </span>
     </div>
     ${t.showNotes?`<div class="task-notes"><textarea data-tnotes="${t.id}" placeholder="Notes…">${esc(t.notes||'')}</textarea></div>`:''}
@@ -1665,6 +1795,14 @@ function taskHTML(t,hide,depth){
   </div>`;
 }
 function addDays(ds,n){ const d=new Date(ds+'T00:00'); d.setDate(d.getDate()+n); return iso(d); }
+function dueClass(due,done){ if(!due||done) return 'due-far';
+  const t=todayStr(); if(due<t) return 'due-over'; if(due<=addDays(t,3)) return 'due-soon'; if(due<=addDays(t,14)) return 'due-near'; return 'due-far'; }
+function isEmptyTask(t){ return t.type==='task' && !(t.name||'').trim() && !(t.notes||'').trim() && !t.due && !(t.owner||'').trim()
+  && !(t.links||[]).length && !(t.tagIds||[]).length && !t.priorityId && (!t.children||!t.children.length)
+  && t.stateId===(S.settings.taskStates[0]||{}).id; }
+function pruneEmptyTasks(){ let removed=0; const walk=list=>{ for(let i=list.length-1;i>=0;i--){ const t=list[i];
+  if(t.children&&t.children.length) walk(t.children);
+  if(isEmptyTask(t)){ list.splice(i,1); removed++; } } }; walk(S.tasks); return removed; }
 function ownerDatalist(){ const owners=[...new Set(collectTasks().map(t=>t.owner).filter(Boolean))];
   let dl=$('#ownerlist'); if(!dl){ dl=document.createElement('datalist'); dl.id='ownerlist'; document.body.appendChild(dl); }
   dl.innerHTML=owners.map(o=>`<option value="${esc(o)}">`).join(''); }
@@ -1694,7 +1832,8 @@ window.toggleTaskTag=(id,tag,on)=>{ const r=findTask(id); if(!r) return; r.t.tag
   if(on){ if(!r.t.tagIds.includes(tag)) r.t.tagIds.push(tag); } else r.t.tagIds=r.t.tagIds.filter(x=>x!==tag);
   touch(r.t); save(); render(); };
 ACTIONS.delTask=el=>{ const r=findTask(el.dataset.id); if(!r) return;
-  const n=(r.t.children||[]).length; if((r.t.name||n)&&!confirm('Delete this '+(r.t.type==='header'?'header':'task')+(n?' and its '+n+' item(s)':'')+'?')) return;
+  const n=(r.t.children||[]).length; if((r.t.name||n)&&!confirm('Delete this '+(r.t.type==='header'?'header':'task')+(n?' and its '+n+' item(s)':'')+'? You can restore it from Trash.')) return;
+  if(r.t.name||n) trashPush(r.t.type==='header'?'Header':'Task',r.t.name||'(untitled)',{task:deepCopy(r.t),parentId:r.parent?r.parent.id:null,index:r.idx});
   r.list.splice(r.idx,1); save(); render(); };
 ACTIONS.indentTask=el=>{ const r=findTask(el.dataset.id); if(!r||r.idx===0) return toast('Nothing above to nest under');
   const prev=r.list[r.idx-1]; r.list.splice(r.idx,1); prev.children=prev.children||[]; prev.children.push(r.t); prev.collapsed=false; save(); render(); focusTask(r.t.id); };
@@ -1711,6 +1850,7 @@ document.addEventListener('change',e=>{
   const n=e.target.closest('[data-tname]'); if(n){ const r=findTask(n.dataset.tname); if(r){ r.t.name=n.value; if(r.t.type!=='header')touch(r.t); save(); } return; }
   const d=e.target.closest('[data-tdue]'); if(d){ const r=findTask(d.dataset.tdue); if(r){ r.t.due=d.value; touch(r.t); save(); renderKeepFocus(); } return; }
   const o=e.target.closest('[data-towner]'); if(o){ const r=findTask(o.dataset.towner); if(r){ r.t.owner=o.value; touch(r.t); save(); ownerDatalist(); } return; }
+  const la=e.target.closest('[data-tlast]'); if(la){ const r=findTask(la.dataset.tlast); if(r){ r.t.lastActioned=la.value; save(); } return; }
   const x=e.target.closest('[data-tnotes]'); if(x){ const r=findTask(x.dataset.tnotes); if(r){ r.t.notes=x.value; touch(r.t); save(); } return; }
 });
 document.addEventListener('keydown',e=>{
@@ -1737,34 +1877,105 @@ function newBlock(type){ const b={id:uid(),type:type||'p',html:''};
 }
 const BLOCK_PH={p:'Type “/” for headings, bullets, toggles, tables, links… (this is a free notes area)',h1:'Heading 1',h2:'Heading 2',h3:'Heading 3',bullet:'List item',callout:'Callout',toggle:'Toggle heading'};
 
+/* ---- Behaviour Change Wheel taxonomy (used by cascading grid dropdowns) ---- */
+const LMH=['Low','Medium','High'];
+const COMB=['Physical capability','Psychological capability','Physical opportunity','Social opportunity','Reflective motivation','Automatic motivation'];
+const IFUNC=['Education','Persuasion','Incentivisation','Coercion','Training','Restriction','Environmental restructuring','Modelling','Enablement'];
+const RULES={
+  comb_if:{ 'Physical capability':['Training','Enablement'],
+    'Psychological capability':['Education','Training','Enablement'],
+    'Physical opportunity':['Training','Restriction','Environmental restructuring','Enablement'],
+    'Social opportunity':['Restriction','Environmental restructuring','Modelling','Enablement'],
+    'Reflective motivation':['Education','Persuasion','Incentivisation','Coercion'],
+    'Automatic motivation':['Persuasion','Incentivisation','Coercion','Environmental restructuring','Modelling','Enablement'] },
+  if_policy:{ 'Education':['Communication/marketing','Guidelines','Service provision'],
+    'Persuasion':['Communication/marketing','Guidelines','Service provision'],
+    'Incentivisation':['Communication/marketing','Guidelines','Fiscal measures','Regulation','Service provision'],
+    'Coercion':['Communication/marketing','Guidelines','Fiscal measures','Regulation','Legislation'],
+    'Training':['Guidelines','Fiscal measures','Regulation','Legislation','Service provision'],
+    'Restriction':['Guidelines','Fiscal measures','Regulation','Legislation'],
+    'Environmental restructuring':['Guidelines','Fiscal measures','Regulation','Legislation','Environmental/social planning'],
+    'Modelling':['Communication/marketing','Service provision'],
+    'Enablement':['Guidelines','Fiscal measures','Regulation','Legislation','Environmental/social planning','Service provision'] },
+  if_bct:{ 'Education':['Information about health consequences','Information about social & environmental consequences','Feedback on behaviour','Prompts/cues'],
+    'Persuasion':['Credible source','Information about emotional consequences','Anticipated regret'],
+    'Incentivisation':['Material incentive (behaviour)','Non-specific reward','Social reward','Self-monitoring of behaviour'],
+    'Coercion':['Punishment','Material/behaviour cost'],
+    'Training':['Instruction on how to perform the behaviour','Behavioural practice/rehearsal','Demonstration of the behaviour','Habit formation'],
+    'Restriction':['Restructuring the social environment','Avoidance/reducing exposure to cues'],
+    'Environmental restructuring':['Adding objects to the environment','Restructuring the physical environment','Prompts/cues'],
+    'Modelling':['Demonstration of the behaviour'],
+    'Enablement':['Social support (practical)','Adding objects to the environment','Goal setting (behaviour)','Problem solving','Action planning'] },
+};
+/* grid column presets */
+const GRID_PRESETS={
+  stakeholder:[
+    {key:'name',label:'Stakeholder / group',w:150},
+    {key:'priority',label:'Priority',type:'select',options:LMH,w:90},
+    {key:'details',label:'Details',w:170},
+    {key:'opps',label:'Opportunities for HIC collaboration',w:180},
+    {key:'influence',label:'Influence',type:'select',options:LMH,w:90},
+    {key:'interest',label:'Interest',type:'select',options:LMH,w:90},
+    {key:'risks',label:'Potential risks',w:150},
+    {key:'owner',label:'Relationship owner',w:120},
+    {key:'next',label:'Next actions',w:150},
+    {key:'status',label:'Engagement status',type:'select',options:['To engage','In progress','Active','Established','On hold'],w:120},
+  ],
+  mne:[
+    {key:'topic',label:'Baseline topic',w:150},
+    {key:'sentiment',label:'What the sentiment is (from insights)',w:190},
+    {key:'data',label:'Key data points (from insights)',w:190},
+    {key:'comb',label:'COM-B lens',type:'select',options:COMB,w:150},
+    {key:'progress',label:'Progress indicators',w:160},
+    {key:'collection',label:'Data collection',w:150},
+  ],
+  behaviour:[
+    {key:'barrier',label:'Barrier',w:170},
+    {key:'comb',label:'COM-B analysis',type:'select',options:COMB,w:150},
+    {key:'ifunc',label:'Intervention functions',type:'select',dep:'comb',rule:'comb_if',w:170},
+    {key:'policy',label:'Policy categories',type:'select',dep:'ifunc',rule:'if_policy',w:170},
+    {key:'bct',label:'Behaviour change techniques',type:'select',dep:'ifunc',rule:'if_bct',w:200},
+    {key:'suggest',label:'Relevant intervention suggestions',w:200},
+  ],
+};
+function gridBlock(preset,nrows){ const cols=GRID_PRESETS[preset].map(c=>({...c}));
+  const rows=[]; for(let i=0;i<(nrows||2);i++){ const r={}; cols.forEach(c=>r[c.key]=''); rows.push(r); }
+  return {id:uid(),type:'grid',columns:cols,rows}; }
+
 /* ---- note page templates ---- */
-function tBlocks(spec){ return spec.map(s=>{ const b=newBlock(s[0]); if(s[0]==='table'){ b.rows=s[1]; } else b.html=s[1]||''; return b; }); }
+function tBlocks(spec){ return spec.map(s=>{ const b=newBlock(s[0]);
+  if(s[0]==='table'){ b.rows=s[1]; } else if(s[0]==='grid'){ return gridBlock(s[1],s[2]); } else b.html=s[1]||''; return b; }); }
 const NOTE_TEMPLATES={
   blank:{name:'Blank page',icon:'📄',blocks:()=>[newBlock('h1'),newBlock('p')]},
-  stakeholder:{name:'Stakeholder list',icon:'👥',blocks:()=>tBlocks([
-    ['h1','Stakeholder list'],
-    ['p','Who matters to this programme, what they care about, and how we engage them.'],
-    ['table',[['Stakeholder','Organisation','Interest / stake','Influence','Engagement approach','Owner','Last contact'],['','','','','','',''],['','','','','','','']]],
-  ])},
   marketing:{name:'Marketing plan',icon:'📣',blocks:()=>tBlocks([
     ['h1','Marketing plan'],
-    ['h2','Objectives'],['bullet','Objective 1'],
-    ['h2','Audiences'],['table',[['Audience','Key message','Channel','Timing'],['','','','']]],
-    ['h2','Campaign calendar'],['table',[['Activity','Channel','Start','End','Owner','Status'],['','','','','','']]],
-    ['h2','Budget'],['p','Link budget lines here with /link.'],
+    ['h2','Vision'],['p',''],
+    ['h2','Problem and opportunity'],['p',''],
+    ['h2','Umbrella idea'],['p',''],
+    ['h2','How we roll this out to support the vision'],['p',''],
+    ['h2','Sustainable ownership'],['p',''],
+    ['h2','What success looks like'],['p',''],
+  ])},
+  mne:{name:'M&E baseline framework',icon:'📊',blocks:()=>tBlocks([
+    ['h1','M&E baseline framework'],
+    ['h2','Problem statement'],['p',''],
+    ['h2','Core measurement question'],
+    ['callout','e.g. Are HIC activities helping people move from interested in cycling to confident, supported cyclists for everyday local trips?'],
+    ['h2','Baseline'],
+    ['grid','mne',3],
+  ])},
+  stakeholder:{name:'Stakeholder list',icon:'👥',blocks:()=>tBlocks([
+    ['h1','Stakeholder list'],
+    ['p','One row per stakeholder or group.'],
+    ['grid','stakeholder',3],
   ])},
   behaviour:{name:'Behaviour change approach',icon:'🔄',blocks:()=>tBlocks([
     ['h1','Behaviour change approach'],
-    ['h2','Target behaviour'],['p','The specific behaviour we want to shift, and for whom.'],
-    ['h2','Barriers & drivers'],['table',[['Barrier','Driver','Intervention'],['','','']]],
-    ['h2','Interventions'],['bullet','Intervention 1'],
-    ['h2','Measures of success'],['bullet','Measure 1'],
-  ])},
-  mne:{name:'M&E baseline',icon:'📊',blocks:()=>tBlocks([
-    ['h1','Monitoring & evaluation baseline'],
-    ['h2','Outcomes & indicators'],['table',[['Outcome','Indicator','Baseline','Target','Data source','Frequency'],['','','','','','']]],
-    ['h2','Baseline notes'],['p','Baseline conditions at programme start.'],
-    ['h2','Evaluation questions'],['bullet','Question 1'],
+    ['p','Add a section per key behaviour you want to change. Duplicate the block below (⋮⋮ → Duplicate) for each behaviour.'],
+    ['h2','Behaviour: '],
+    ['callout','Behaviour we want to see — e.g. Increased walking in Henderson, particularly to and from Henderson station'],
+    ['p','Insight statement — e.g. 33% of respondents would consider this as an alternative mode'],
+    ['grid','behaviour',3],
   ])},
   links:{name:'Links database',icon:'🔗',kind:'links',blocks:()=>[]},
 };
@@ -1772,6 +1983,25 @@ const NOTE_TEMPLATES={
 function blockHTML(b){
   const handle=`<span class="handle" data-act="blockMenu" data-id="${b.id}" title="Block options">⋮⋮</span>`;
   if(b.type==='divider') return `<div class="blk t-divider" data-blk="${b.id}">${handle}</div>`;
+  if(b.type==='grid'){
+    const cols=b.columns||[];
+    const cell=(row,ri,c)=>{
+      if(c.type==='select'){
+        const opts=c.dep?(RULES[c.rule]&&RULES[c.rule][row[c.dep]]||[]):(c.options||[]);
+        const need=c.dep&&!row[c.dep];
+        const prevLabel=c.dep?((cols.find(x=>x.key===c.dep)||{}).label||'previous'):'';
+        const extra=row[c.key]&&!opts.includes(row[c.key])?`<option selected>${esc(row[c.key])}</option>`:'';
+        return `<td><select data-grid="${b.id}" data-ri="${ri}" data-ck="${c.key}" ${need?'disabled':''}>
+          <option value="">${need?'pick '+esc(prevLabel)+' first':'—'}</option>
+          ${opts.map(o=>`<option ${row[c.key]===o?'selected':''}>${esc(o)}</option>`).join('')}${extra}</select></td>`;
+      }
+      return `<td><textarea rows="1" data-grid="${b.id}" data-ri="${ri}" data-ck="${c.key}" placeholder="…">${esc(row[c.key]||'')}</textarea></td>`;
+    };
+    const head=`<tr>${cols.map(c=>`<th style="min-width:${c.w||120}px">${esc(c.label)}</th>`).join('')}<th></th></tr>`;
+    const body=(b.rows||[]).map((row,ri)=>`<tr>${cols.map(c=>cell(row,ri,c)).join('')}<td class="nowrap"><span class="dragh" style="opacity:.4">⠿</span><button class="btn sm ghost danger" data-act="gridDelRow" data-id="${b.id}" data-ri="${ri}">✕</button></td></tr>`).join('');
+    return `<div class="blk t-grid" data-blk="${b.id}">${handle}<div class="tblwrap"><table class="tbl ngrid"><thead>${head}</thead><tbody>${body}</tbody></table></div>
+      <button class="btn sm" data-act="gridAddRow" data-id="${b.id}" style="margin-top:4px">+ Row</button></div>`;
+  }
   if(b.type==='table'){
     const rows=(b.rows||[]).map((r,ri)=>`<tr>${r.map((c,ci)=>`<td contenteditable="true" data-tcell="${b.id}" data-r="${ri}" data-c="${ci}">${c}</td>`).join('')}</tr>`).join('');
     return `<div class="blk t-table" data-blk="${b.id}">${handle}<table class="ntbl"><tbody>${rows}</tbody></table>
@@ -1822,7 +2052,8 @@ ACTIONS.createNotePage=t=>{ const tpl=NOTE_TEMPLATES[t.dataset.tpl]||NOTE_TEMPLA
 ACTIONS.renamePage=()=>{ const pg=curPage();
   const icon=prompt('Page icon (an emoji):',pg.icon||'📄'); if(icon!==null){ pg.icon=icon.trim()||'📄'; save(); render(); } };
 ACTIONS.delNotePage=t=>{ if(S.notes.length<=1) return toast('Keep at least one page');
-  if(!confirm('Delete this notes page?')) return;
+  const pg=byId(S.notes,t.dataset.id); if(!confirm('Delete this notes page? You can restore it from Trash.')) return;
+  trashPush('Notes page',(pg&&pg.name)||'Page',{notes:[pg]});
   S.notes=S.notes.filter(p=>p.id!==t.dataset.id); S.ui.notePage=S.notes[0].id; save(); render(); };
 
 /* ---- links database ---- */
@@ -1852,7 +2083,7 @@ function linksDBHTML(){
 }
 ACTIONS.addLink=()=>{ S.links.push({id:uid(),title:'',url:'',category:'',notes:''}); save(); render();
   setTimeout(()=>{ const els=$$('input[data-bind^="links."][data-bind$=".title"]'); if(els.length) els[els.length-1].focus(); },40); };
-ACTIONS.delLink=t=>{ S.links=S.links.filter(l=>l.id!==t.dataset.id); save(); render(); };
+ACTIONS.delLink=t=>{ const l=byId(S.links,t.dataset.id); trashPush('Link',(l&&(l.title||l.url))||'Link',{links:[l]}); S.links=S.links.filter(l=>l.id!==t.dataset.id); save(); render(); };
 function focusBlock(id,toEnd){ setTimeout(()=>{ const el=document.querySelector(`.bc[data-bid="${id}"]`); if(!el) return; el.focus();
   if(toEnd){ const r=document.createRange(); r.selectNodeContents(el); r.collapse(false); const s=getSelection(); s.removeAllRanges(); s.addRange(r); } },40); }
 
@@ -1874,9 +2105,13 @@ ACTIONS.blockMenu=t=>{ const id=t.dataset.id; const r=findBlock(id); if(!r) retu
     <div style="display:flex;gap:6px">
       <button class="btn sm" data-act="blockMove" data-id="${id}" data-dir="-1">↑ Move up</button>
       <button class="btn sm" data-act="blockMove" data-id="${id}" data-dir="1">↓ Move down</button>
+      <button class="btn sm" data-act="blockDup" data-id="${id}">⧉ Duplicate</button>
       <button class="btn sm danger" data-act="blockDel" data-id="${id}" style="margin-left:auto">Delete block</button>
     </div></div>`);
 };
+ACTIONS.blockDup=t=>{ const r=findBlock(t.dataset.id); if(!r) return; const copy=deepCopy(r.b);
+  const reid=b=>{ b.id=uid(); (b.children||[]).forEach(reid); }; reid(copy);
+  r.list.splice(r.idx+1,0,copy); save(); closeModal(); render(); };
 ACTIONS.blockType=t=>{ const r=findBlock(t.dataset.id); if(!r) return; const ty=t.dataset.type;
   if(ty==='toggle'&&r.b.type!=='toggle'){ r.b.open=true; r.b.children=r.b.children||[newBlock('p')]; }
   r.b.type=ty; save(); closeModal(); render(); };
@@ -1890,12 +2125,24 @@ let bSaveTimer=null;
 document.addEventListener('input',e=>{
   const pn=e.target.closest&&e.target.closest('[data-pgname]');
   if(pn){ const pg=byId(S.notes,pn.dataset.pgname); if(pg){ pg.name=pn.value; clearTimeout(bSaveTimer); bSaveTimer=setTimeout(()=>{ save(); const tab=document.querySelector(`.note-tab[data-id="${pg.id}"]`); if(tab) tab.lastChild.textContent=' '+pg.name; },400); } return; }
+  const gt=e.target.closest&&e.target.closest('textarea[data-grid]');
+  if(gt){ const r=findBlock(gt.dataset.grid); if(r){ (r.b.rows[+gt.dataset.ri]||{})[gt.dataset.ck]=gt.value; clearTimeout(bSaveTimer); bSaveTimer=setTimeout(save,400); } return; }
   const bc=e.target.closest&&e.target.closest('.bc[data-bid]'); if(!bc) return;
   const r=findBlock(bc.dataset.bid); if(!r) return;
   r.b.html=bc.innerHTML;
   clearTimeout(bSaveTimer); bSaveTimer=setTimeout(save,400);
   maybeSlashMenu(bc,r);
 });
+/* grid select cells: update + clear dependents + re-render for cascading options */
+document.addEventListener('change',e=>{
+  const gs=e.target.closest&&e.target.closest('select[data-grid]'); if(!gs) return;
+  const r=findBlock(gs.dataset.grid); if(!r) return; const row=r.b.rows[+gs.dataset.ri]; if(!row) return;
+  row[gs.dataset.ck]=gs.value;
+  (r.b.columns||[]).forEach(c=>{ if(c.dep===gs.dataset.ck) row[c.key]=''; }); // clear now-invalid children
+  save(); render();
+});
+ACTIONS.gridAddRow=t=>{ const r=findBlock(t.dataset.id); if(!r) return; const row={}; (r.b.columns||[]).forEach(c=>row[c.key]=''); r.b.rows.push(row); save(); render(); };
+ACTIONS.gridDelRow=t=>{ const r=findBlock(t.dataset.id); if(!r) return; r.b.rows.splice(+t.dataset.ri,1); if(!r.b.rows.length){ const row={}; (r.b.columns||[]).forEach(c=>row[c.key]=''); r.b.rows.push(row); } save(); render(); };
 document.addEventListener('focusout',e=>{
   const td=e.target.closest&&e.target.closest('[data-tcell]'); if(!td) return;
   const r=findBlock(td.dataset.tcell); if(!r) return;
@@ -1944,20 +2191,20 @@ ACTIONS.slashPick=t=>{ const ty=t.dataset.type; const r=slashFor&&findBlock(slas
 };
 
 /* ================= CSV DATA ROUND-TRIP (contracts & financial data) ================= */
-const CSV_COLS=['type','supplier','supplier_number','contract_number','contract_value','what','where','start_date','end_date','po_number','po_description','line_number','line_description','wbs','spend_code','gl_code','line_value','invoice_number','invoice_value','invoice_date','invoice_for','notes'];
+const CSV_COLS=['type','supplier','supplier_number','contract_number','contract_value','what','start_date','end_date','po_number','po_description','line_number','line_description','wbs','spend_code','gl_code','line_value','invoice_number','invoice_value','invoice_date','invoice_for','notes'];
 const csvCell=v=>{ v=String(v==null?'':v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; };
 const csvRow=obj=>CSV_COLS.map(k=>csvCell(obj[k]??'')).join(',');
 function buildDataCSV(){ // current data in the import schema — edit in Excel and re-upload
   const lines=[CSV_COLS.join(',')];
   const emitPO=(p)=>{ const c=contractOf(p.contractId)||{};
-    lines.push(csvRow({type:'po',supplier:p.supplier||'',contract_number:c.contractNumber||'',where:p.where||'',po_number:p.poNumber,po_description:p.description||''}));
+    lines.push(csvRow({type:'po',supplier:p.supplier||'',contract_number:c.contractNumber||'',po_number:p.poNumber,po_description:p.description||''}));
     linesOfPO(p.id).forEach(l=>{
       lines.push(csvRow({type:'line',po_number:p.poNumber,line_number:l.lineNo,line_description:l.description||'',wbs:l.wbs||'',spend_code:l.spendCode||'',gl_code:l.glCode||'',line_value:parseNum(l.value)}));
       invoicesOfLine(l.id).forEach(i=>lines.push(csvRow({type:'invoice',po_number:p.poNumber,line_number:l.lineNo,invoice_number:i.invoiceNumber,invoice_value:parseNum(i.value),invoice_date:i.date||'',invoice_for:i.forWhat||'',notes:i.notes||''})));
     });
   };
   S.contracts.forEach(c=>{
-    lines.push(csvRow({type:'contract',supplier:c.supplier,supplier_number:c.supplierNumber||'',contract_number:c.contractNumber||'',contract_value:parseNum(c.totalValue),what:c.what||'',where:c.where||'',start_date:c.startDate||'',end_date:c.endDate||'',notes:c.notes||''}));
+    lines.push(csvRow({type:'contract',supplier:c.supplier,supplier_number:c.supplierNumber||'',contract_number:c.contractNumber||'',contract_value:parseNum(c.totalValue),what:c.what||'',start_date:c.startDate||'',end_date:c.endDate||'',notes:c.notes||''}));
     posOfContract(c.id).forEach(emitPO);
   });
   standalonePOs().forEach(emitPO);
@@ -1992,7 +2239,7 @@ function runCSVImport(text){
   const rows=parseCSV(text);
   if(rows.length<2) return {errors:['No data rows found under the header row.'],recognised:0};
   const alias={total_value:'contract_value',contract_total_value:'contract_value',wbs_element:'wbs',invoice_notes:'notes',line_no:'line_number',po_no:'po_number',contract_no:'contract_number',
-    site:'where',location:'where',region:'where',workstream:'where',for_what:'what',forwhat:'what',what_for:'what',description:'po_description'};
+    for_what:'what',forwhat:'what',what_for:'what',description:'po_description'};
   const head=rows[0].map(h=>{ const k=h.toLowerCase().trim().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,''); return alias[k]||k; });
   const idx=name=>head.indexOf(name);
   const get=(r,name)=>{ const i=idx(name); return i>=0?(r[i]||'').trim():''; };
@@ -2008,9 +2255,9 @@ function runCSVImport(text){
         res.recognised++;
         const no=get(r,'contract_number'), supplier=get(r,'supplier');
         let c=no?findContract(no):S.contracts.find(x=>!x.contractNumber&&x.supplier.toLowerCase()===supplier.toLowerCase());
-        if(!c){ c={id:uid(),supplier:'',supplierNumber:'',contractNumber:'',totalValue:0,variations:[],startDate:'',endDate:'',notes:'',archived:false,what:'',where:''}; S.contracts.push(c); res.contracts++; } else res.updated++;
+        if(!c){ c={id:uid(),supplier:'',supplierNumber:'',contractNumber:'',totalValue:0,variations:[],startDate:'',endDate:'',notes:'',archived:false,what:''}; S.contracts.push(c); res.contracts++; } else res.updated++;
         setIf(c,'supplier',supplier); setIf(c,'supplierNumber',get(r,'supplier_number')); setIf(c,'contractNumber',no);
-        setIf(c,'what',get(r,'what')); setIf(c,'where',get(r,'where'));
+        setIf(c,'what',get(r,'what'));
         if(get(r,'contract_value')!=='') c.totalValue=parseNum(get(r,'contract_value'));
         setIf(c,'startDate',normDate(get(r,'start_date'))); setIf(c,'endDate',normDate(get(r,'end_date'))); setIf(c,'notes',get(r,'notes'));
       }
@@ -2021,9 +2268,9 @@ function runCSVImport(text){
         let contractId='';
         if(cno){ const c=findContract(cno); if(!c) throw `contract "${cno}" not found (import contracts first / order rows contract → po → line → invoice)`; contractId=c.id; }
         let p=findPO(no);
-        if(!p){ p={id:uid(),poNumber:no,contractId:'',supplier:'',description:'',archived:false,where:''}; S.pos.push(p); res.pos++; } else res.updated++;
+        if(!p){ p={id:uid(),poNumber:no,contractId:'',supplier:'',description:'',archived:false}; S.pos.push(p); res.pos++; } else res.updated++;
         if(cno) p.contractId=contractId;
-        setIf(p,'supplier',get(r,'supplier')); setIf(p,'where',get(r,'where')); setIf(p,'description',get(r,'po_description')||get(r,'notes'));
+        setIf(p,'supplier',get(r,'supplier')); setIf(p,'description',get(r,'po_description')||get(r,'notes'));
       }
       else if(type==='line'){
         res.recognised++;
@@ -2102,8 +2349,8 @@ function xSheet(name,rows){ // rows[0] is the header row
 ACTIONS.exportExcel=()=>{
   const ps=periodList();
   const sheets=[
-    xSheet('Overview',[['Type','For what',S.settings.whereLabel||'Where','Supplier','Contract #','PO #','PO lines','Original budget','Variations','Current value','Contract end','Actuals','Remaining','Notes','Archived'],
-      ...overviewRows().map(r=>[r.kind,r.what,r.where,r.supplier,r.contractNo,r.poNo,r.lineCount===''?'':r.lineCount,r.orig,r.vars,r.current,r.endDate,r.actuals,r.remaining,r.notes,r.archived?'yes':''])]),
+    xSheet('Overview',[['Type','For what','Supplier','Contract #','PO #','PO lines','Original budget','Variations','Current value','Contract end','Actuals','Remaining','Notes','Archived'],
+      ...overviewRows().map(r=>[r.kind,r.what,r.supplier,r.contractNo,r.poNo,r.lineCount===''?'':r.lineCount,r.orig,r.vars,r.current,r.endDate,r.actuals,r.remaining,r.notes,r.archived?'yes':''])]),
     xSheet('Contracts',[['Supplier','Supplier #','Contract #','Original value','Variations','Current value','Start','End','Sum of PO lines','Unallocated','Notes','Archived'],
       ...S.contracts.map(c=>[c.supplier,c.supplierNumber,c.contractNumber,parseNum(c.totalValue),contractVarsSum(c),contractCurrent(c),c.startDate||'',c.endDate||'',contractLinesSum(c.id),contractCurrent(c)-contractLinesSum(c.id),c.notes||'',c.archived?'yes':''])]),
     xSheet('Variations',[['Supplier','Contract #','Description','Date','Value'],
@@ -2126,6 +2373,7 @@ ACTIONS.exportExcel=()=>{
     xSheet('Notes',(()=>{const rows=[['Page','Type','Content']];
       S.notes.forEach(pg=>{ if(pg.kind==='links') return;
         const emit=(b,depth)=>{ if(b.type==='table'){ (b.rows||[]).forEach(r=>rows.push([pg.name,'table',r.map(htmlToText).join(' | ')])); }
+          else if(b.type==='grid'){ rows.push([pg.name,'grid',(b.columns||[]).map(c=>c.label).join(' | ')]); (b.rows||[]).forEach(gr=>rows.push([pg.name,'grid',(b.columns||[]).map(c=>gr[c.key]||'').join(' | ')])); }
           else if(b.type!=='divider') rows.push([pg.name,b.type,'  '.repeat(depth)+htmlToText(b.html)]);
           (b.children||[]).forEach(c=>emit(c,depth+1)); };
         (pg.blocks||[]).forEach(b=>emit(b,0)); }); return rows;})()),
@@ -2146,8 +2394,8 @@ function mdTable(head,rows){ if(!rows.length) return '_None._\n';
   return [line(head),'|'+head.map(()=>'---').join('|')+'|',...rows.map(line)].join('\n')+'\n'; }
 ACTIONS.exportMD=()=>{
   const ps=periodList(); let md=`# ${S.programme.name} — programme snapshot\n\nExported ${todayStr()}.\n\n`;
-  md+=`## Overview (one row per contract / standalone PO)\n\n`+mdTable(['Type','For what','Where','Supplier','Contract #','PO #','Original','Variations','Current value','End date','Actuals','Remaining','Notes'],
-    overviewRows().map(r=>[r.kind,r.what,r.where,r.supplier,r.contractNo,r.poNo,fmt(r.orig),fmt(r.vars),fmt(r.current),r.endDate,fmt(r.actuals),fmt(r.remaining),r.notes]));
+  md+=`## Overview (one row per contract / standalone PO)\n\n`+mdTable(['Type','For what','Supplier','Contract #','PO #','Original','Variations','Current value','End date','Actuals','Remaining','Notes'],
+    overviewRows().map(r=>[r.kind,r.what,r.supplier,r.contractNo,r.poNo,fmt(r.orig),fmt(r.vars),fmt(r.current),r.endDate,fmt(r.actuals),fmt(r.remaining),r.notes]));
   md+=`\n## Contracts\n\n`;
   if(!S.contracts.length) md+='_None._\n';
   S.contracts.forEach(c=>{
@@ -2188,6 +2436,7 @@ ACTIONS.exportMD=()=>{
     else if(b.type==='h3') out=`### ${htmlToText(b.html)}`; else if(b.type==='bullet') out=ind+`- ${htmlToText(b.html)}`;
     else if(b.type==='divider') out='---'; else if(b.type==='callout') out=`> ${htmlToText(b.html)}`;
     else if(b.type==='table') out=mdTable((b.rows[0]||[]).map(htmlToText),(b.rows.slice(1)||[]).map(r=>r.map(htmlToText)));
+    else if(b.type==='grid') out=mdTable((b.columns||[]).map(c=>c.label),(b.rows||[]).map(gr=>(b.columns||[]).map(c=>gr[c.key]||'')));
     else if(b.type==='toggle') out=ind+`- **${htmlToText(b.html)}**`;
     else out=ind+htmlToText(b.html);
     return out+'\n'+(b.children||[]).map(c=>bmd(c,depth+1)).join(''); };
