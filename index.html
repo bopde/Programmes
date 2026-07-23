@@ -168,6 +168,11 @@ dialog .m-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;bord
 .fc-cell input{width:86px;text-align:right;font-variant-numeric:tabular-nums}
 .fc-cell .sub{display:block;font-size:10.5px;color:var(--ink-3);text-align:right;padding-right:6px}
 .fc-cell input.pct{color:var(--accent);font-weight:600}
+.fc-cell.fc-over{background:var(--bad-soft)}
+.fc-cell.fc-under{background:var(--good-soft)}
+.fcd{display:inline-block;padding:0 4px;border-radius:6px;font-size:10px;font-weight:700;font-variant-numeric:tabular-nums}
+.fcd.over{background:var(--bad-soft);color:var(--bad)}
+.fcd.under{background:var(--good-soft);color:var(--good)}
 
 /* ---------- calendar ---------- */
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--line-2);gap:1px;box-shadow:var(--shadow)}
@@ -593,6 +598,7 @@ function rowCalc(r){ // budget row derived values — auto-populated from the li
 const TYPE_META={
   task:{ic:'☑',label:'Task'}, event:{ic:'📅',label:'Event'}, contract:{ic:'📜',label:'Contract'},
   po:{ic:'🧾',label:'PO'}, poline:{ic:'#',label:'PO line'}, budget:{ic:'💰',label:'Budget'}, invoice:{ic:'🧮',label:'Invoice'},
+  fcline:{ic:'📈',label:'Forecast'},
 };
 function walkTasks(fn,list,depth,parent){ (list||S.tasks).forEach(t=>{ fn(t,depth||0,parent||null); if(t.children&&t.children.length) walkTasks(fn,t.children,(depth||0)+1,t); }); }
 function refLabel(type,id){
@@ -603,6 +609,10 @@ function refLabel(type,id){
   if(type==='poline'){ const l=lineOf(id); if(!l) return '(deleted line)'; const p=poOf(l.poId); return 'PO '+(p?p.poNumber:'?')+' / '+(l.lineNo||'?'); }
   if(type==='budget'){ const b=byId(S.budget,id); return b?(b.what||'(budget line)'):'(deleted budget line)'; }
   if(type==='invoice'){ const i=byId(S.invoices,id); return i?('Inv '+(i.invoiceNumber||'?')):'(deleted invoice)'; }
+  if(type==='fcline'){ const f=byId(S.fcLines,id); if(!f) return '(deleted forecast line)';
+    if(f.parentRef==='planned') return 'Planned: '+(f.forWhat||'(forecast line)');
+    const p=poOf(f.poId), l=lineOf(f.poLineId);
+    return (f.forWhat||'Forecast')+(p?(' (PO '+(p.poNumber||'?')+(l?(' / line '+(l.lineNo||'?')):'')+')'):''); }
   return '(?)';
 }
 function chipHTML(ref,removeCtx){ const [type,id]=ref.split(':'); const m=TYPE_META[type]||{ic:'∙'};
@@ -616,6 +626,9 @@ function allEntities(){ const out=[];
   S.poLines.forEach(l=>{const p=poOf(l.poId);out.push({ref:'poline:'+l.id,label:'PO '+(p?p.poNumber:'?')+' / line '+(l.lineNo||'?'),sub:money(l.value),ty:'PO line'});});
   S.budget.forEach(b=>out.push({ref:'budget:'+b.id,label:b.what||'(budget line)',sub:'',ty:'Budget'}));
   S.invoices.forEach(i=>out.push({ref:'invoice:'+i.id,label:'Inv '+(i.invoiceNumber||'?'),sub:money(i.value),ty:'Invoice'}));
+  (S.fcLines||[]).forEach(f=>{ if(f.archived) return;
+    out.push({ref:'fcline:'+f.id,label:f.forWhat||'(forecast line)',
+      sub:f.parentRef==='planned'?('Planned '+money(f.plannedValue||0)):fcSupplier(f.parentRef),ty:'Forecast'});});
   return out;
 }
 let lpCallback=null;
@@ -636,12 +649,20 @@ function backlinksTo(ref){ const out=[];
   S.notes.forEach(pg=>{ const scan=b=>{ if(b.html&&b.html.includes('data-goto="'+ref+'"')) out.push('note:'+pg.id); (b.children||[]).forEach(scan); }; (pg.blocks||[]).forEach(scan); });
   return out;
 }
+/* rewrite a persisted ref across tasks, events and note blocks (e.g. fcline: -> contract: on conversion) */
+function migrateRef(oldRef,newRef){
+  walkTasks(t=>{ if(t.links) t.links=t.links.map(r=>r===oldRef?newRef:r); });
+  S.events.forEach(e=>{ if(e.links) e.links=e.links.map(r=>r===oldRef?newRef:r); });
+  S.notes.forEach(pg=>{ const scan=b=>{ if(b.html) b.html=b.html.split('data-goto="'+oldRef+'"').join('data-goto="'+newRef+'"'); (b.children||[]).forEach(scan); }; (pg.blocks||[]).forEach(scan); });
+}
 function gotoRef(ref){ const [type,id]=ref.split(':');
   if(ref==='__status'||type==='status'||type==='note'){ if(type==='note'&&byId(S.notes,id)) S.ui.notePage=id; setTab('status'); return; }
   const tab={task:'actions',event:'calendar'}[type]||'budget';
   if(type==='event'){ const e=byId(S.events,id); if(e){ S.ui.calDate=e.date; } }
   if(['contract','po','poline','invoice'].includes(type)) S.ui.budgetTab='structure';
   if(type==='budget') S.ui.budgetTab='lines';
+  if(type==='fcline'){ S.ui.budgetTab='forecast'; const f=byId(S.fcLines,id);
+    if(f){ if(!S.ui.fcOpen) S.ui.fcOpen={}; S.ui.fcOpen[f.parentRef]=true; } }
   if(type==='task'){ // expand ancestors so it is visible
     const expand=(list,path)=>{ for(const t of list){ if(t.id===id){ path.forEach(a=>a.collapsed=false); return true; } if(t.children&&expand(t.children,[...path,t])) return true; } return false; };
     expand(S.tasks,[]);
@@ -706,6 +727,9 @@ function handleBind(el){
       if(parts[2]==='poId'){ item.poLineId=''; }
     }
     if(parts[0]==='fcLines'&&parts[2]==='poId') item.poLineId='';
+    if(parts[0]==='fcLines'&&parts[2]==='statusId'&&item.parentRef==='planned'&&val==='committed'){
+      item.statusId='planned'; // keep planned until the modal confirms the conversion
+      openConvertModal(item.id); return; }
   }
   save();
   const norerender=el.dataset.norerender;
@@ -1390,19 +1414,28 @@ function fcTopRows(){ // contracts + standalone POs + a Planned bucket, each wit
 function fcRollup(row,key){ // every parent row is a read-only sum of its forecast lines
   return (row.children||[]).reduce((s,ch)=>s+fcOwn(ch.ref,ch.current,ch.actuals,key),0);
 }
+// per-period Δ chip when an actual has landed against a forecast (positive = spent above forecast)
+function fcDelta(own,act){ const d=(act||0)-(own||0);
+  if(!(act>0)||Math.abs(d)<.005) return {cls:'',chip:''};
+  return {cls:d>0?'fc-over':'fc-under',chip:`<span class="fcd ${d>0?'over':'under'}" title="Actual vs forecast">Δ${d>0?'+':''}${fmt(d)}</span>`};
+}
 function fcCellHTML(ref,current,actuals,p,extra){
   extra=extra||{};
+  const act=extra.act||0;
   if(extra.readonly){ // parent contract/PO row: not editable, just the summed forecast of the lines below
-    const parts=[]; if(extra.act) parts.push('act '+fmt(extra.act));
-    return `<td class="fc-cell fc-ro num nowrap" title="Sum of the forecast lines below (edit those, not this)">${extra.roll?fmt(extra.roll):'·'}<span class="sub">${parts.join(' ')}</span></td>`;
+    const roll=extra.roll||0; const dl=fcDelta(roll,act);
+    const parts=[]; if(act) parts.push('act '+fmt(act)); if(dl.chip) parts.push(dl.chip);
+    return `<td class="fc-cell fc-ro num nowrap ${dl.cls}" title="Sum of the forecast lines below (edit those, not this)">${roll?fmt(roll):'·'}<span class="sub">${parts.join(' ')}</span></td>`;
   }
   const f=fcEntry(ref,p.key);
   const shown=f?(f.mode==='pct'?f.v+'%':fmt(f.v)):'';
   const own=fcOwn(ref,current,actuals,p.key);
+  const dl=fcDelta(own,act);
   const parts=[];
   if(f&&f.mode==='pct') parts.push('≈'+fmt(own));
-  if(extra.act) parts.push('act '+fmt(extra.act));
-  return `<td class="fc-cell"><input data-fc="${ref}|${p.key}" class="${f&&f.mode==='pct'?'pct':''}" value="${esc(shown)}" placeholder="·" title="Enter a value, or a % of remaining (e.g. 25%).">
+  if(act) parts.push('act '+fmt(act));
+  if(dl.chip) parts.push(dl.chip);
+  return `<td class="fc-cell ${dl.cls}"><input data-fc="${ref}|${p.key}" class="${f&&f.mode==='pct'?'pct':''}" value="${esc(shown)}" placeholder="·" title="Enter a value, or a % of remaining (e.g. 25%).">
     <span class="sub">${parts.join(' · ')||''}</span></td>`;
 }
 function renderForecast(){
@@ -1430,7 +1463,9 @@ function renderForecast(){
     return `<select data-bind="fcLines.${f.id}.statusId" title="Status" style="max-width:130px;${stt?`color:${stt.color};font-weight:600`:''}"><option value="">status…</option>${opts.map(s=>`<option value="${s.id}" ${f.statusId===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select>`; };
   const dateFields=f=>`<label class="small muted" style="display:inline-flex;align-items:center;gap:2px">start <input type="date" data-bind="fcLines.${f.id}.startDate" value="${esc(f.startDate||'')}" style="width:130px"></label>
         <label class="small muted" style="display:inline-flex;align-items:center;gap:2px">end <input type="date" data-bind="fcLines.${f.id}.endDate" value="${esc(f.endDate||'')}" style="width:130px"></label>`;
-  const lineTools=f=>`<td class="nowrap"><button class="btn sm ghost" data-act="spreadRow" data-ref="fcline:${f.id}" title="Spread remainder evenly over empty periods">↔</button>
+  const fcBacklinkBadge=f=>{ const n=backlinksTo('fcline:'+f.id).length;
+    return n?`<span class="badge" title="${n} task/event/note link${n===1?'':'s'} — these follow through if this is converted to a contract">↩${n}</span>`:''; };
+  const lineTools=f=>`<td class="nowrap">${f.parentRef==='planned'?`<button class="btn sm ghost" data-act="convertPlanned" data-id="${f.id}" title="Convert this planned spend into a contract">→ Contract</button>`:''}<button class="btn sm ghost" data-act="spreadRow" data-ref="fcline:${f.id}" title="Spread remainder evenly over empty periods">↔</button>
         <button class="btn sm ghost" data-act="archFcLine" data-id="${f.id}" title="${f.archived?'Unarchive':'Archive'} forecast line">${f.archived?'↩':'🗄'}</button>
         <button class="btn sm ghost danger" data-act="delFcLine" data-id="${f.id}" title="Delete forecast line">✕</button></td>`;
   const childHTML=ch=>{ const f=ch.f;
@@ -1445,7 +1480,7 @@ function renderForecast(){
           <input data-bind="fcLines.${f.id}.supplier" value="${esc(f.supplier||'')}" placeholder="Likely supplier" style="width:140px"></div>
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:3px;padding-left:18px">
           <span class="badge" style="background:#96a2ae1a;color:#5b6b7a">planning</span>
-          ${statusSelect(f,S.settings.fcStatuses||[])}${dateFields(f)}</div>
+          ${statusSelect(f,S.settings.fcStatuses||[])}${dateFields(f)}${fcBacklinkBadge(f)}</div>
         </td>
         <td class="num nowrap"><input class="num" data-bind="fcLines.${f.id}.plannedValue" data-type="num" value="${f.plannedValue?fmt(f.plannedValue):''}" placeholder="est. value" style="width:100px"></td>
         <td class="num nowrap muted small">—</td>
@@ -1466,7 +1501,7 @@ function renderForecast(){
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:3px;padding-left:18px">
         ${sup?`<span class="muted small" title="Supplier (from ${f.parentRef.startsWith('contract:')?'contract':'PO'})">🏢 ${esc(sup)}</span>`:''}
-        ${statusSelect(f,committedStatuses())}${dateFields(f)}
+        ${statusSelect(f,committedStatuses())}${dateFields(f)}${fcBacklinkBadge(f)}
         </div>
       </td>
       <td class="num nowrap muted small" title="PO line value (shared if several forecast lines use this PO line)">${ch.lineIds.length?money(ch.current):'—'}</td>
@@ -1481,7 +1516,11 @@ function renderForecast(){
     const cells=ps.map(p=>fcCellHTML(row.ref,row.current,row.actuals,p,
       {act:actualsInPeriod(row.lineIds,p),roll:fcRollup(row,p.key),readonly:true})).join('');
     const fcTot=ps.reduce((s,p)=>s+fcRollup(row,p.key),0);
-    const variance=row.current-row.actuals-fcTot;
+    // count max(forecast, actual) per quarter so invoicing a forecast quarter doesn't double-count;
+    // out-of-window actuals (row.actuals − windowAct) are added back so nothing is lost.
+    const windowAct=ps.reduce((s,p)=>s+actualsInPeriod(row.lineIds,p),0);
+    const effTot=ps.reduce((s,p)=>s+Math.max(fcRollup(row,p.key),actualsInPeriod(row.lineIds,p)),0);
+    const variance=row.current-row.actuals+windowAct-effTot;
     return `<tr data-anchor="${row.ref}" class="${row.planned?'fc-planned':''}">
       <td class="nowrap" style="max-width:250px;overflow:hidden;text-overflow:ellipsis">
         <span class="fc-caret" data-act="fcToggle" data-ref="${row.ref}" title="Forecast line detail">${open?'▼':'▶'}</span>
@@ -1502,14 +1541,18 @@ function renderForecast(){
   const body=rows.map(r=>rowHTML(r)).join('');
   const colTot=ps.map(p=>{ const fc=rows.reduce((s,r)=>s+fcRollup(r,p.key),0);
     const act=rows.reduce((s,r)=>s+actualsInPeriod(r.lineIds,p),0);
-    return `<td class="num nowrap">${fmt(fc)}<br><span class="small muted">act ${fmt(act)}</span></td>`; }).join('');
+    const dl=fcDelta(fc,act);
+    return `<td class="num nowrap ${dl.cls}">${fmt(fc)}<br><span class="small muted">act ${fmt(act)}</span>${dl.chip?'<br>'+dl.chip:''}</td>`; }).join('');
   const tCur=rows.reduce((s,r)=>s+r.current,0), tAct=rows.reduce((s,r)=>s+r.actuals,0);
   const tFc=rows.reduce((s,r)=>s+ps.reduce((x,p)=>x+fcRollup(r,p.key),0),0);
+  const tUnphased=rows.reduce((s,r)=>{ const wAct=ps.reduce((x,p)=>x+actualsInPeriod(r.lineIds,p),0);
+    const eff=ps.reduce((x,p)=>x+Math.max(fcRollup(r,p.key),actualsInPeriod(r.lineIds,p)),0);
+    return s+(r.current-r.actuals+wAct-eff); },0);
   $('#budget-body').innerHTML=`<div class="tblwrap"><table class="tbl">
     <thead><tr><th>Item</th><th class="num">Current value</th><th class="num">Actuals to date</th>
     ${ps.map(p=>`<th class="num nowrap">${p.label}${p.sub?`<br><span style="font-weight:400;text-transform:none;letter-spacing:0">${p.sub}</span>`:''}</th>`).join('')}<th class="num">Forecast Σ</th><th class="num">Unphased</th><th></th></tr></thead>
-    <tbody>${body}<tr class="tot"><td>Total</td><td class="num nowrap">${money(tCur)}</td><td class="num nowrap">${money(tAct)}</td>${colTot}<td class="num nowrap">${money(tFc)}</td><td class="num nowrap">${money(tCur-tAct-tFc)}</td><td></td></tr></tbody></table></div>
-    <div class="small muted" style="margin-top:8px">Quarters follow the <b>July–June financial year</b> — Q1 FY27 = Jul–Sep 2026. ▶ expands a contract/PO to add <b>forecast lines</b>; you phase on the lines (type a value like <b>5,000</b> or a % of remaining like <b>25%</b>), and the contract row above is the read-only sum of its lines. Several lines can phase the same PO line. Archive a line with 🗄 and use “show archived” to bring them back. Paste tab-separated values from Excel to fill several periods at once. “act” shows invoiced actuals in that period.</div>`;
+    <tbody>${body}<tr class="tot"><td>Total</td><td class="num nowrap">${money(tCur)}</td><td class="num nowrap">${money(tAct)}</td>${colTot}<td class="num nowrap">${money(tFc)}</td><td class="num nowrap">${money(tUnphased)}</td><td></td></tr></tbody></table></div>
+    <div class="small muted" style="margin-top:8px">Quarters follow the <b>July–June financial year</b> — Q1 FY27 = Jul–Sep 2026. ▶ expands a contract/PO to add <b>forecast lines</b>; you phase on the lines (type a value like <b>5,000</b> or a % of remaining like <b>25%</b>), and the contract row above is the read-only sum of its lines. Several lines can phase the same PO line. Archive a line with 🗄 and use “show archived” to bring them back. Paste tab-separated values from Excel to fill several periods at once. “act” shows invoiced actuals in that period. Each quarter counts the <b>greater of forecast or actual</b> toward the budget, so invoicing a quarter you forecast doesn’t double-count; where an actual differs from the forecast a <span class="fcd over">Δ</span> flags it (red = over forecast, green = under).</div>`;
 }
 function handleForecastCell(el){ const [ref,key]=el.dataset.fc.split('|'); const raw=el.value.trim();
   if(!raw){ delete S.forecast[ref+'|'+key]; }
@@ -1524,6 +1567,91 @@ ACTIONS.addFcLine=t=>{ const parentRef=t.dataset.parent;
   S.ui.fcOpen[parentRef]=true; save(); render(); };
 ACTIONS.addPlannedLine=()=>{ S.fcLines.push({id:uid(),parentRef:'planned',poId:'',poLineId:'',forWhat:'',supplier:'',plannedValue:0,statusId:'planned',startDate:'',endDate:'',archived:false});
   S.ui.fcOpen['planned']=true; save(); render(); };
+
+/* ---- convert a planned spend into a contract / PO / line (keeps the fcLine id so phasing carries over) ---- */
+let CV=null;
+function openConvertModal(fcId){ const f=byId(S.fcLines,fcId); if(!f) return;
+  const v=f.plannedValue?fmt(f.plannedValue):'';
+  CV={ fcId, contractSel:'new', poSel:'new',
+    supplier:f.supplier||'', supplierNumber:'', contractNumber:'', totalValue:v, what:f.forWhat||'', startDate:f.startDate||'', endDate:f.endDate||'',
+    poNumber:'', poDescription:f.forWhat||'',
+    lineNo:'10', lineDesc:f.forWhat||'', wbs:'', spendCode:'', glCode:'', lineValue:v };
+  drawConvertModal();
+}
+function drawConvertModal(){ if(!CV) return; const f=byId(S.fcLines,CV.fcId); if(!f){ closeModal(); return; }
+  const contracts=S.contracts.filter(c=>!c.archived);
+  const newC=CV.contractSel==='new', noC=CV.contractSel==='none';
+  const existingC=(!newC&&!noC)?contractOf(CV.contractSel):null;
+  const poRows=existingC?posOfContract(existingC.id).filter(p=>!p.archived):[];
+  const newPO=CV.poSel==='new'||!existingC;
+  const links=backlinksTo('fcline:'+CV.fcId);
+  const g=(k,ph)=>`<input value="${esc(CV[k]||'')}" placeholder="${esc(ph||'')}" onchange="cvField('${k}',this.value)">`;
+  modal(`<div class="m-h"><h3>Convert planned spend → contract</h3></div><div class="m-b">
+    <div class="small muted" style="margin-bottom:8px">Turning <b>${esc(f.forWhat||'this planned item')}</b> into a committed line — its phased forecast carries over${links.length?`, and <b>${links.length}</b> linked item${links.length===1?'':'s'} will re-point to the ${noC?'PO':'contract'}`:''}.</div>
+    <form data-form="convertPlanned" id="cvform">
+    <label class="f"><span>Contract</span>
+      <select onchange="cvSelect('contractSel',this.value)">
+        <option value="new" ${newC?'selected':''}>➕ New contract</option>
+        ${contracts.map(c=>`<option value="${c.id}" ${CV.contractSel===c.id?'selected':''}>${esc((c.contractNumber||'no #')+' · '+c.supplier)}</option>`).join('')}
+        <option value="none" ${noC?'selected':''}>No contract — standalone PO</option>
+      </select></label>
+    ${newC?`<div class="grid2">
+      <label class="f"><span>Supplier name</span>${g('supplier','Supplier')}</label>
+      <label class="f"><span>Supplier number</span>${g('supplierNumber','')}</label>
+      <label class="f"><span>Contract number</span>${g('contractNumber','')}</label>
+      <label class="f"><span>Total value (original)</span>${g('totalValue','0')}</label>
+      <label class="f"><span>Contract name</span>${g('what','')}</label>
+      <label class="f"><span>Start date</span><input type="date" value="${esc(CV.startDate||'')}" onchange="cvField('startDate',this.value)"></label>
+      <label class="f"><span>End date</span><input type="date" value="${esc(CV.endDate||'')}" onchange="cvField('endDate',this.value)"></label>
+    </div>`:''}
+    <label class="f"><span>Purchase order</span>
+      ${existingC?`<select onchange="cvSelect('poSel',this.value)">
+          <option value="new" ${CV.poSel==='new'?'selected':''}>➕ New PO</option>
+          ${poRows.map(p=>`<option value="${p.id}" ${CV.poSel===p.id?'selected':''}>${esc('PO '+(p.poNumber||'?'))}</option>`).join('')}
+        </select>`:`<span class="small muted">New PO${noC?' (standalone)':''}</span>`}</label>
+    ${newPO?`<div class="grid2">
+      <label class="f"><span>PO number</span>${g('poNumber','PO number')}</label>
+      <label class="f"><span>PO description</span>${g('poDescription','')}</label>
+      ${noC?`<label class="f"><span>PO supplier</span>${g('supplier','Supplier')}</label>`:''}
+    </div>`:''}
+    <div class="small muted" style="margin:8px 0 4px">PO line</div>
+    <div class="grid2">
+      <label class="f"><span>Line number</span>${g('lineNo','10')}</label>
+      <label class="f"><span>Line value</span>${g('lineValue','0')}</label>
+      <label class="f"><span>Description</span>${g('lineDesc','')}</label>
+      <label class="f"><span>WBS element</span>${g('wbs','')}</label>
+      <label class="f"><span>Spend code</span>${g('spendCode','')}</label>
+      <label class="f"><span>GL code</span>${g('glCode','')}</label>
+    </div>
+    </form>
+  </div><div class="m-f"><button class="btn" data-act="convertCancel">Cancel</button>
+    <button class="btn primary" type="submit" form="cvform">Convert to contract</button></div>`);
+}
+window.cvField=(k,v)=>{ if(CV) CV[k]=v; };
+window.cvSelect=(k,v)=>{ if(!CV) return; CV[k]=v; if(k==='contractSel') CV.poSel='new'; drawConvertModal(); };
+FORMS.convertPlanned=()=>{ if(!CV) return; const f=byId(S.fcLines,CV.fcId); if(!f){ closeModal(); return; }
+  let cid='', poId='';
+  if(CV.contractSel==='new'){ cid=uid();
+    S.contracts.push({id:cid,variations:[],archived:false,
+      supplier:(CV.supplier||'').trim(),supplierNumber:(CV.supplierNumber||'').trim(),contractNumber:(CV.contractNumber||'').trim(),
+      what:(CV.what||'').trim(),totalValue:parseNum(CV.totalValue),startDate:CV.startDate||'',endDate:CV.endDate||'',notes:''}); }
+  else if(CV.contractSel!=='none'){ cid=CV.contractSel; }
+  if(cid&&CV.poSel!=='new'&&CV.poSel){ poId=CV.poSel; }
+  else{ poId=uid();
+    S.pos.push({id:poId,contractId:cid,supplier:cid?'':(CV.supplier||'').trim(),
+      poNumber:(CV.poNumber||'').trim(),description:(CV.poDescription||'').trim(),archived:false}); }
+  const lineId=uid();
+  S.poLines.push({id:lineId,poId,lineNo:(CV.lineNo||'').trim()||'10',wbs:(CV.wbs||'').trim(),spendCode:(CV.spendCode||'').trim(),
+    glCode:(CV.glCode||'').trim(),value:parseNum(CV.lineValue),description:(CV.lineDesc||'').trim(),archived:false});
+  const newParent=cid?('contract:'+cid):('po:'+poId);
+  f.parentRef=newParent; f.poId=poId; f.poLineId=lineId; f.statusId='committed'; f.supplier=''; delete f.plannedValue;
+  migrateRef('fcline:'+f.id,newParent);
+  if(!S.ui.fcOpen) S.ui.fcOpen={}; S.ui.fcOpen[newParent]=true; S.ui.budgetTab='forecast';
+  CV=null; save(); closeModal(); render();
+  toast('Converted — linked items now point to the '+(cid?'contract':'PO'));
+};
+ACTIONS.convertCancel=()=>{ CV=null; closeModal(); render(); };
+ACTIONS.convertPlanned=t=>openConvertModal(t.dataset.id);
 ACTIONS.archFcLine=t=>{ const f=byId(S.fcLines,t.dataset.id); if(f){ f.archived=!f.archived; save(); render(); toast(f.archived?'Forecast line archived':'Forecast line restored'); } };
 ACTIONS.delFcLine=t=>{ const id=t.dataset.id; const f=byId(S.fcLines,id);
   const hasEntries=Object.keys(S.forecast).some(k=>k.startsWith('fcline:'+id+'|'));
