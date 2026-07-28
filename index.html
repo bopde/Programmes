@@ -126,6 +126,8 @@ tr.fc-planned>td{background:#f4f1fa}
 .chip .x:hover{color:var(--bad)}
 .chip .ic{opacity:.65;font-size:11px}
 .pill{display:inline-flex;align-items:center;gap:5px;border-radius:99px;padding:2px 10px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid transparent;white-space:nowrap}
+.pillsel{border-radius:99px;padding:2px 6px 2px 10px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid transparent;white-space:nowrap;-webkit-appearance:none;appearance:none;font-family:inherit}
+#progSwitch{margin-left:8px;font:inherit;font-size:12px;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:7px;padding:2px 4px;max-width:210px;cursor:pointer}
 .badge{display:inline-block;border-radius:6px;padding:1px 7px;font-size:11.5px;font-weight:600}
 .badge.ok{background:var(--good-soft);color:var(--good)}
 .badge.warn{background:var(--warn-soft);color:var(--warn)}
@@ -302,7 +304,7 @@ input[type=color]{padding:0;width:34px;height:28px;border-radius:6px;cursor:poin
 </head>
 <body>
 <header>
-  <div class="brand"><span class="mark">M</span><span id="progName" contenteditable="true" spellcheck="false"></span></div>
+  <div class="brand"><span class="mark">M</span><span id="progName" contenteditable="true" spellcheck="false"></span><select id="progSwitch" title="Switch programme, or see all together"></select></div>
   <nav class="tabs" id="tabs">
     <button data-tab="budget">Budget</button>
     <button data-tab="calendar">Calendar</button>
@@ -352,7 +354,7 @@ const dstr=d=>d?new Date(d+'T00:00').toLocaleDateString('en-NZ',{day:'numeric',m
 let S=null, lsKey=null, TAB='budget';
 
 function defaultState(name){return {
-  v:6,
+  v:7,
   programme:{name:name||'New Programme',currency:'$',created:todayStr(),modified:''},
   settings:{
     taskStates:[
@@ -395,7 +397,7 @@ function defaultState(name){return {
   fcCfg:{gran:'quarter',start:fyStartKey(),count:4},
   events:[],     // {id,title,date,endDate,time,tagIds:[],organiser,notes,links:[]}
   tasks:[],      // nested: {id,name,type('task'|'header'),due,lastActioned,completed,stateId,priorityId,owner,tagIds:[],notes,links:[],collapsed,children:[]}
-  notes:[{id:uid(),name:'Notes',icon:'📝',kind:'doc',blocks:[{id:uid(),type:'h1',html:'Notes'},{id:uid(),type:'p',html:''}]}],  // pages (was S.status)
+  notes:[guidePageObj(),{id:uid(),name:'Notes',icon:'📝',kind:'doc',blocks:[{id:uid(),type:'h1',html:'Notes'},{id:uid(),type:'p',html:''}]}],  // pages (was S.status)
   links:[],      // links database [{id,title,url,category,notes}]
   trash:[],      // recently deleted: {id,kind,label,when,bundle}
   views:[],      // custom budget views {id,name,cols:[],groupBy,filter}
@@ -404,6 +406,7 @@ function defaultState(name){return {
   ui:{budgetTab:'lines',calMode:'month',calDate:todayStr(),view:'full',hideDone:false,
       budgetArch:'hide',structView:'active',structFilter:'',structF:{supplier:'',wbs:'',contract:''},
       fcFilter:'',fcF:{supplier:'',wbs:'',contract:''},fcView:'',fcOpen:{},
+      ovF:{supplier:'',wbs:'',contract:''},ovWindow:false,calShowTasks:true,calShowDone:true,
       structCollapsed:{},poCollapsed:{},notePage:'',taskGroup:'',taskWeekOnly:false,fcArch:'active'},
 };}
 function fyStartKey(){ const d=new Date(); const y=d.getMonth()+1>=7?d.getFullYear():d.getFullYear()-1; return y+'-07'; }
@@ -418,6 +421,17 @@ function listLocal(){const out=[];for(let i=0;i<localStorage.length;i++){const k
   if(k.startsWith('progapp:data:')){try{const d=JSON.parse(localStorage.getItem(k));out.push({key:k,name:d.programme.name,modified:d.programme.modified});}catch(e){}}}
   return out.sort((a,b)=>(b.modified||'').localeCompare(a.modified||''));}
 
+/* ---- multi-programme: unified read-only overview across every programme on this computer ---- */
+let OVERVIEW=false;
+function allProgrammes(){ return listLocal().map(p=>{ try{ return {key:p.key,name:p.name,st:migrate(JSON.parse(localStorage.getItem(p.key)))}; }catch(e){ return null; } }).filter(Boolean); }
+function withState(st,fn){ const prev=S; S=st; try{ return fn(); } finally{ S=prev; } } // run read-only compute against another programme's state
+function updateProgSwitch(){ const sel=$('#progSwitch'); if(!sel) return; const list=listLocal();
+  sel.innerHTML=`<option value="__ov" ${OVERVIEW?'selected':''}>★ All programmes (overview)</option>`
+    +list.map(p=>`<option value="${esc(p.key)}" ${!OVERVIEW&&p.key===lsKey?'selected':''}>${esc(p.name)}</option>`).join(''); }
+function enterOverview(){ OVERVIEW=true; document.title='All programmes — Programme Manager';
+  const pn=$('#progName'); pn.textContent='All programmes'; pn.setAttribute('contenteditable','false');
+  updateProgSwitch(); if(TAB==='status') TAB='budget'; render(); }
+
 function boot(){
   const last=localStorage.getItem('progapp:last');
   if(last&&localStorage.getItem(last)){ openKey(last); } else { showStart(); }
@@ -431,6 +445,7 @@ function showStart(){
 function openKey(key){
   try{ S=migrate(JSON.parse(localStorage.getItem(key))); }catch(e){ toast('Could not open programme'); showStart(); return; }
   lsKey=key; localStorage.setItem('progapp:last',key);
+  OVERVIEW=false; $('#progName').setAttribute('contenteditable','true');
   $('#start').classList.remove('show'); initUI();
 }
 function createProgramme(name){
@@ -501,6 +516,11 @@ function migrate(d){ const def=defaultState('x');
     d.trash=d.trash||[];
     d.v=6;
   }
+  if(d.v<7){ // v6 → v7: seed the deletable Welcome & guide page at the front of Notes (once)
+    d.notes=d.notes||[];
+    if(!d.notes.some(p=>p.guide)) d.notes.unshift(guidePageObj());
+    d.v=7;
+  }
   (d.fcLines||[]).forEach(f=>{ if(f.archived===undefined) f.archived=false; if(f.supplier===undefined) f.supplier=''; });
   if(!d.notes||!d.notes.length) d.notes=[{id:uid(),name:'Notes',icon:'📝',blocks:[{id:uid(),type:'h1',html:'Notes'},{id:uid(),type:'p',html:''}]}];
   (d.contracts||[]).forEach(c=>{ if(!c.variations) c.variations=[]; });
@@ -526,6 +546,7 @@ function importState(obj){
 function initUI(){
   $('#progName').textContent=S.programme.name;
   document.title=S.programme.name+' — Programme Manager';
+  updateProgSwitch();
   setTab(TAB);
 }
 function setTab(name){
@@ -536,11 +557,89 @@ function setTab(name){
 }
 function render(){
   const v=$('#view');
+  if(OVERVIEW){
+    if(TAB==='calendar') renderOvCalendar(v);
+    else if(TAB==='actions') renderOvActions(v);
+    else if(TAB==='status') v.innerHTML=`<div class="card"><div class="empty">Notes are kept per programme.<br><br>Pick a programme from the switcher under the title to see and edit its notes.</div></div>`;
+    else renderOvBudget(v);
+    refreshTrashCount(); return;
+  }
   if(TAB==='budget') renderBudget(v);
   else if(TAB==='calendar') renderCalendar(v);
   else if(TAB==='actions') renderTasks(v);
   else if(TAB==='status') renderStatus(v);
   refreshTrashCount();
+}
+
+/* ---- unified overview renderers (read-only, aggregate every programme) ---- */
+function renderOvBudget(v){
+  const progs=allProgrammes(); let body=''; const gt={current:0,actuals:0,remaining:0};
+  progs.forEach(pr=>{
+    const rows=withState(pr.st,()=>overviewRows().filter(r=>!r.archived));
+    if(!rows.length) return;
+    const st={current:0,actuals:0,remaining:0};
+    rows.forEach(r=>{st.current+=r.current;st.actuals+=r.actuals;st.remaining+=r.remaining;});
+    gt.current+=st.current; gt.actuals+=st.actuals; gt.remaining+=st.remaining;
+    body+=`<tr class="grp"><td colspan="6">${esc(pr.name)} <span class="muted small">· ${rows.length} row${rows.length>1?'s':''} · ${money(st.current)}</span></td></tr>`
+      +rows.map(r=>`<tr><td>${esc(r.what)||'<span class="muted small">'+r.kind+'</span>'}</td><td class="nowrap">${esc(r.supplier)}</td><td class="nowrap">${esc(r.contractNo)||'<span class="muted">—</span>'}</td><td class="num nowrap">${money(r.current)}</td><td class="num nowrap">${money(r.actuals)}</td><td class="num nowrap ${r.remaining<0?'due-over':''}">${money(r.remaining)}</td></tr>`).join('')
+      +`<tr class="tot"><td colspan="3">Subtotal — ${esc(pr.name)}</td><td class="num nowrap">${money(st.current)}</td><td class="num nowrap">${money(st.actuals)}</td><td class="num nowrap">${money(st.remaining)}</td></tr>`;
+  });
+  v.innerHTML=`<div class="toolbar"><h2 style="margin:0;font-size:18px">Unified budget — all programmes</h2></div>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th>For what</th><th>Supplier</th><th>Contract #</th><th class="num">Current</th><th class="num">Actuals</th><th class="num">Remaining</th></tr></thead>
+    <tbody>${body||'<tr><td colspan="6"><div class="empty">No programmes with budget data yet.</div></td></tr>'}
+    ${body?`<tr class="tot"><td colspan="3"><b>All programmes</b></td><td class="num nowrap"><b>${money(gt.current)}</b></td><td class="num nowrap"><b>${money(gt.actuals)}</b></td><td class="num nowrap ${gt.remaining<0?'due-over':''}"><b>${money(gt.remaining)}</b></td></tr>`:''}
+    </tbody></table></div>
+    <div class="small muted" style="margin-top:8px">Read-only roll-up of every programme on this computer. Switch to a single programme from the title bar to edit it.</div>`;
+}
+function ovCalItems(){ const events=[],due=[],done=[];
+  allProgrammes().forEach(pr=>withState(pr.st,()=>{
+    (S.events||[]).forEach(e=>{ const tag=tagOf((e.tagIds||[])[0]); events.push({date:e.date,endDate:e.endDate,title:e.title,prog:pr.name,col:tag?tag.color:'var(--ink-2)'}); });
+    walkTasks(t=>{ if(t.type==='header') return; const dn=stateOf(t.stateId).done;
+      if(t.due&&!dn) due.push({date:t.due,name:t.name,prog:pr.name});
+      if(t.completed&&dn) done.push({date:t.completed,name:t.name,prog:pr.name}); });
+  }));
+  return {events,due,done}; }
+function renderOvCalendar(v){
+  const items=ovCalItems(); const d=calDate(); const monthName=d.toLocaleDateString('en-NZ',{month:'long',year:'numeric'});
+  v.innerHTML=`<div class="toolbar">
+    <button class="btn icon" data-act="calNav" data-dir="-1">‹</button>
+    <button class="btn icon" data-act="calNav" data-dir="1">›</button>
+    <button class="btn sm" data-act="calToday">Today</button>
+    <h2 style="margin:0 8px;font-size:20px">${esc(monthName)} — all programmes</h2>
+    <div class="sp"></div>
+    <span class="pill" data-act="calToggleTasks" style="background:${S.ui.calShowTasks?'var(--ink-2)':'transparent'};color:${S.ui.calShowTasks?'#fff':'var(--ink-2)'};border-color:var(--ink-2)">☐ Tasks</span>
+    <span class="pill" data-act="calToggleDone" style="background:${S.ui.calShowDone?'var(--good)':'transparent'};color:${S.ui.calShowDone?'#fff':'var(--good)'};border-color:var(--good)">✓ Done</span></div>
+    <div id="cal-body"></div>`;
+  const first=new Date(d.getFullYear(),d.getMonth(),1); const start=new Date(first); start.setDate(1-((first.getDay()+6)%7));
+  let cells=''; const today=todayStr();
+  for(let i=0;i<42;i++){ const day=new Date(start); day.setDate(start.getDate()+i); const ds=iso(day); const dim=day.getMonth()!==d.getMonth();
+    const evs=items.events.filter(e=>e.endDate?ds>=e.date&&ds<=e.endDate:e.date===ds).map(e=>`<div class="ev" title="${esc(e.title)} · ${esc(e.prog)}"><span class="dot" style="background:${e.col}"></span><span class="t">${esc(e.title)} <span class="muted">· ${esc(e.prog)}</span></span></div>`).join('');
+    const tks=S.ui.calShowTasks?items.due.filter(t=>t.date===ds).map(t=>`<div class="ev task"><span>☐</span><span class="t">${esc(t.name)} <span class="muted">· ${esc(t.prog)}</span></span></div>`).join(''):'';
+    const dn=S.ui.calShowDone?items.done.filter(t=>t.date===ds).map(t=>`<div class="ev task done"><span>✓</span><span class="t">${esc(t.name)} <span class="muted">· ${esc(t.prog)}</span></span></div>`).join(''):'';
+    cells+=`<div class="cal-cell ${dim?'dim':''} ${ds===today?'today':''}"><span class="dnum">${day.getDate()}</span>${evs}${tks}${dn}</div>`;
+  }
+  $('#cal-body').innerHTML=`<div class="cal-grid">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(x=>`<div class="dow">${x}</div>`).join('')}${cells}</div>`;
+}
+function ovTaskList(list){ return list.map(t=>{
+  if(t.type==='header') return `<div class="task-row header-row" style="opacity:.85"><b>${esc(t.name||'')}</b></div>`+((t.children&&t.children.length)?`<div class="task-kids">${ovTaskList(t.children)}</div>`:'');
+  const st=stateOf(t.stateId), pr=priorityOf(t.priorityId);
+  return `<div class="task-row ${st.done?'done':''}">
+    ${pr?`<span class="prio" style="background:${pr.color}">${esc(pr.name.split(' ')[0])}</span>`:'<span class="prio none">—</span>'}
+    <span class="pill" style="background:${st.color}1c;color:${st.color};border-color:${st.color}55">${esc(st.name)}</span>
+    <span style="flex:1">${esc(t.name||'(untitled)')}</span>
+    ${t.owner?`<span class="badge">👤 ${esc(t.owner)}</span>`:''}
+    <span class="small" style="width:100px;text-align:right">${t.due?dstr(t.due):''}</span></div>`
+    +((t.children&&t.children.length)?`<div class="task-kids">${ovTaskList(t.children)}</div>`:'');
+}).join(''); }
+function renderOvActions(v){
+  let body='';
+  allProgrammes().forEach(pr=>withState(pr.st,()=>{
+    const n=countOpenTasks(); const tree=(S.tasks&&S.tasks.length)?ovTaskList(S.tasks):'<div class="muted small" style="padding:4px 6px">No actions.</div>';
+    body+=`<div class="task-row header-row" style="border-top:1px solid var(--line-2);margin-top:6px"><b style="font-size:15px">${esc(pr.name)}</b> <span class="muted small" style="margin-left:6px">· ${n} open</span></div><div class="task-kids">${tree}</div>`;
+  }));
+  v.innerHTML=`<div class="toolbar"><h2 style="margin:0;font-size:18px">All actions — grouped by programme</h2></div>
+    <div class="card"><div class="card-b task-tree">${body||'<div class="empty">No programmes yet.</div>'}</div></div>
+    <div class="small muted" style="margin-top:8px">Read-only. Switch to a single programme from the title bar to edit its actions.</div>`;
 }
 
 /* ================= lookups & derived values ================= */
@@ -709,6 +808,7 @@ document.addEventListener('submit',e=>{
 });
 $('#progName').addEventListener('blur',()=>{ S.programme.name=$('#progName').textContent.trim()||S.programme.name; $('#progName').textContent=S.programme.name; document.title=S.programme.name+' — Programme Manager'; save(); });
 $('#progName').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();e.target.blur();} });
+$('#progSwitch').addEventListener('change',e=>{ const v=e.target.value; if(v==='__ov') enterOverview(); else if(v) openKey(v); });
 
 /* data-bind="collection.id.field" (collections) or "path.field" for S.programme etc */
 function handleBind(el){
@@ -960,6 +1060,7 @@ function overviewRows(){
       what:c.what||c.contractNumber||c.supplier||'',supplier:c.supplier||'',contractNo:c.contractNumber||'',
       poNo:poList.map(p=>p.poNumber).filter(Boolean).join(', '),
       lineCount:poList.reduce((s,p)=>s+linesOfPO(p.id).length,0),
+      lineIds:poList.flatMap(p=>linesOfPO(p.id).map(l=>l.id)),wbsList:poList.flatMap(p=>linesOfPO(p.id).map(l=>l.wbs)),
       orig:parseNum(c.totalValue),vars:contractVarsSum(c),current:contractCurrent(c),
       endDate:c.endDate||'',actuals:contractActuals(c.id),notes:c.notes||''});
   });
@@ -967,13 +1068,14 @@ function overviewRows(){
     rows.push({ref:'po:'+p.id,kind:'Standalone PO',archived:!!p.archived,
       what:p.description||'',supplier:p.supplier||'',contractNo:'',
       poNo:p.poNumber||'',lineCount:linesOfPO(p.id).length,
+      lineIds:linesOfPO(p.id).map(l=>l.id),wbsList:linesOfPO(p.id).map(l=>l.wbs),
       orig:poLinesSum(p.id),vars:0,current:poLinesSum(p.id),
       endDate:'',actuals:poActuals(p.id),notes:''});
   });
   S.budget.forEach(r=>{ const d=rowCalc(r); // legacy manual lines
     rows.push({ref:'budget:'+r.id,kind:'Manual',archived:!!r.archived,legacy:true,id:r.id,
       what:r.what||'',supplier:d.supplier,contractNo:d.contractNo,
-      poNo:d.poNo,lineCount:'',orig:d.orig,vars:d.vars,current:d.current,
+      poNo:d.poNo,lineCount:'',lineIds:r.poLineId?[r.poLineId]:[],wbsList:[],orig:d.orig,vars:d.vars,current:d.current,
       endDate:d.endDate,actuals:d.actuals,notes:r.notes||''});
   });
   rows.forEach(r=>r.remaining=r.current-r.actuals);
@@ -991,12 +1093,27 @@ function renderBudgetLines(){
       <option value="show" ${S.ui.budgetArch==='show'?'selected':''}>Show all</option>
       <option value="only" ${S.ui.budgetArch==='only'?'selected':''}>Archived only</option>
     </select>
+    ${filterSelect('o-supplier','Supplier',S.ui.ovF.supplier,supplierOptions())}
+    ${filterSelect('o-contract','Contract #',S.ui.ovF.contract,contractNoOptions())}
+    ${filterSelect('o-wbs','WBS',S.ui.ovF.wbs,wbsOptions())}
+    <span class="small muted nowrap" style="margin-left:6px" title="Financial year window — shared with Forecast & phasing">FY</span>
+    <select data-act="none" id="ovFY" title="Financial year window (Jul–Jun), shared with Forecast">
+      ${fyOptions().map(o=>`<option value="${o.start}" ${S.fcCfg.start===o.start?'selected':''}>${o.label}</option>`).join('')}
+    </select>
+    <label class="small nowrap" title="Scope the Actuals column to the selected financial year"><input type="checkbox" id="ovWin" ${S.ui.ovWindow?'checked':''}> in FY</label>
+    ${(S.ui.ovF.supplier||S.ui.ovF.contract||S.ui.ovF.wbs)?'<button class="btn sm ghost" data-act="ovClearF">clear</button>':''}
     <button class="btn sm" data-act="customView">✎ Custom view</button>`;
   $('#viewSel').onchange=e=>{ S.ui.view=e.target.value; save(); render(); };
   $('#archSel').onchange=e=>{ S.ui.budgetArch=e.target.value; save(); render(); };
+  const ovfy=$('#ovFY'); if(ovfy) ovfy.onchange=e=>{ S.fcCfg.start=e.target.value; S.fcCfg.gran='quarter'; save(); render(); };
+  const ovwin=$('#ovWin'); if(ovwin) ovwin.onchange=e=>{ S.ui.ovWindow=e.target.checked; save(); render(); };
+  $$('#budget-tools [data-fsel]').forEach(sel=>sel.onchange=e=>{ S.ui.ovF[e.target.dataset.fsel.slice(2)]=e.target.value; save(); render(); });
 
   const cols=BUDGET_COLS.filter(c=>view.cols.includes(c.k));
+  const OF=S.ui.ovF;
   let rows=overviewRows().filter(r=>S.ui.budgetArch==='show'||(S.ui.budgetArch==='only'?r.archived:!r.archived));
+  rows=rows.filter(r=>(!OF.supplier||r.supplier===OF.supplier)&&(!OF.contract||r.contractNo===OF.contract)&&(!OF.wbs||(r.wbsList||[]).includes(OF.wbs)));
+  if(S.ui.ovWindow){ const ps=periodList(); rows.forEach(r=>{ r.actuals=ps.reduce((s,p)=>s+actualsInPeriod(r.lineIds||[],p),0); }); }
   if(view.filter){ const q=view.filter.toLowerCase();
     rows=rows.filter(r=>[r.what,r.supplier,r.contractNo,r.poNo,r.notes].join(' ').toLowerCase().includes(q)); }
   const groups={};
@@ -1038,11 +1155,12 @@ function renderBudgetLines(){
   body+=rows.length?sumRow(tAll,'Total','tot'):'';
   $('#budget-body').innerHTML= rows.length?
     `<div class="tblwrap"><table class="tbl"><thead><tr>${cols.map(c=>`<th class="${c.num?'num':''}">${esc(colLabel(c))}</th>`).join('')}<th></th></tr></thead><tbody>${body}</tbody></table></div>
-     <div class="small muted" style="margin-top:8px">Read-only summary — one row per contract and standalone PO. Edit the detail (the contract name is its “for what”) via <b>Contracts · POs · Lines</b>; → jumps straight there.</div>`
+     <div class="small muted" style="margin-top:8px">Read-only summary — one row per contract and standalone PO. Edit the detail (the contract name is its “for what”) via <b>Contracts · POs · Lines</b>; → jumps straight there. Filter by supplier, contract # or WBS; tick <b>in FY</b> to scope the Actuals column to the chosen financial year (the same window as Forecast &amp; phasing) — Remaining always shows the true budget left.</div>`
     :`<div class="card"><div class="empty">Nothing to summarise yet — add contracts or POs on the <b>Contracts · POs · Lines</b> page, or 📥 Import a CSV.<br><br>
       <button class="btn primary" data-act="contractModal">+ Add a contract</button>
       <button class="btn" data-act="importCSV">📥 Import from CSV</button></div></div>`;
 }
+ACTIONS.ovClearF=()=>{ S.ui.ovF={supplier:'',wbs:'',contract:''}; save(); render(); };
 ACTIONS.delBudgetRow=t=>{ const r=byId(S.budget,t.dataset.id); if(!confirm('Delete this budget line? You can restore it from Trash.')) return; trashPush('Budget line',(r&&r.what)||'Budget line',{budget:[r]}); S.budget=S.budget.filter(b=>b.id!==t.dataset.id); save(); render(); };
 ACTIONS.archBudget=t=>{ const r=byId(S.budget,t.dataset.id); if(r){ r.archived=!r.archived; save(); render(); toast(r.archived?'Budget line archived':'Budget line restored'); } };
 ACTIONS.showBacklinks=t=>{ const refs=backlinksTo(t.dataset.ref);
@@ -1471,6 +1589,8 @@ function renderForecast(){
   const childHTML=ch=>{ const f=ch.f;
     const cells=ps.map(p=>fcCellHTML(ch.ref,ch.current,ch.actuals,p,{act:actualsInPeriod(ch.lineIds,p),roll:0})).join('');
     const fcTot=ps.reduce((s,p)=>s+fcOwn(ch.ref,ch.current,ch.actuals,p.key),0);
+    const windowAct=ps.reduce((s,p)=>s+actualsInPeriod(ch.lineIds,p),0); // actuals within the visible FY window
+    const remain=ch.current-Math.max(fcTot,ch.actuals); // budget not yet committed by forecast or spend
     if(ch.planned){ // planning item — manual value + free-text supplier, no PO
       return `<tr data-anchor="${ch.ref}" class="fc-line ${f.archived?'arch':''}" data-drop="fcLines:${f.id}">
         <td style="min-width:360px;padding-left:14px">
@@ -1505,10 +1625,10 @@ function renderForecast(){
         </div>
       </td>
       <td class="num nowrap muted small" title="PO line value (shared if several forecast lines use this PO line)">${ch.lineIds.length?money(ch.current):'—'}</td>
-      <td class="num nowrap muted small">${ch.lineIds.length?money(ch.actuals):'—'}</td>
+      <td class="num nowrap muted small" title="Invoiced within the selected financial-year window">${ch.lineIds.length?money(windowAct):'—'}</td>
       ${cells}
       <td class="num nowrap">${money(fcTot)}</td>
-      <td class="num nowrap muted small">—</td>
+      <td class="num nowrap muted small" title="Line value − the greater of its forecast or its actuals">${ch.lineIds.length?money(remain):'—'}</td>
       ${lineTools(f)}</tr>`;
   };
   const rowHTML=row=>{
@@ -1525,10 +1645,10 @@ function renderForecast(){
       <td class="nowrap" style="max-width:250px;overflow:hidden;text-overflow:ellipsis">
         <span class="fc-caret" data-act="fcToggle" data-ref="${row.ref}" title="Forecast line detail">${open?'▼':'▶'}</span>
         <b>${esc(row.label)}</b>${row.sub?`<br><span class="muted small" style="margin-left:22px">${esc(row.sub)}${(row.children||[]).length?' · '+row.children.length+' line'+(row.children.length===1?'':'s'):''}</span>`:''}</td>
-      <td class="num nowrap">${money(row.current)}</td><td class="num nowrap">${row.planned?'<span class="muted">—</span>':money(row.actuals)}</td>
+      <td class="num nowrap">${money(row.current)}</td><td class="num nowrap" title="Invoiced within the selected financial-year window">${row.planned?'<span class="muted">—</span>':money(windowAct)}</td>
       ${cells}
       <td class="num nowrap">${money(fcTot)}</td>
-      <td class="num nowrap">${row.planned?'':(Math.abs(variance)<.005?'<span class="badge ok">0</span>':`<span class="badge ${variance>0?'warn':'bad'}" title="${variance>0?'Unphased budget':'Phased above remaining budget'}">${money(variance)}</span>`)}</td>
+      <td class="num nowrap">${row.planned?'':(Math.abs(variance)<.005?'<span class="badge ok">0</span>':`<span class="badge ${variance>0?'warn':'bad'}" title="${variance>0?'Budget remaining (not yet committed by forecast or spend)':'Forecast + spend exceed the current budget'}">${money(variance)}</span>`)}</td>
       <td></td></tr>`
       +(open?(row.children||[]).map(childHTML).join('')
         +`<tr class="fc-addrow"><td colspan="${ps.length+6}">
@@ -1543,16 +1663,17 @@ function renderForecast(){
     const act=rows.reduce((s,r)=>s+actualsInPeriod(r.lineIds,p),0);
     const dl=fcDelta(fc,act);
     return `<td class="num nowrap ${dl.cls}">${fmt(fc)}<br><span class="small muted">act ${fmt(act)}</span>${dl.chip?'<br>'+dl.chip:''}</td>`; }).join('');
-  const tCur=rows.reduce((s,r)=>s+r.current,0), tAct=rows.reduce((s,r)=>s+r.actuals,0);
+  const tCur=rows.reduce((s,r)=>s+r.current,0);
+  const tWinAct=rows.reduce((s,r)=>s+ps.reduce((x,p)=>x+actualsInPeriod(r.lineIds,p),0),0); // actuals within the window
   const tFc=rows.reduce((s,r)=>s+ps.reduce((x,p)=>x+fcRollup(r,p.key),0),0);
-  const tUnphased=rows.reduce((s,r)=>{ const wAct=ps.reduce((x,p)=>x+actualsInPeriod(r.lineIds,p),0);
+  const tRemaining=rows.reduce((s,r)=>{ const wAct=ps.reduce((x,p)=>x+actualsInPeriod(r.lineIds,p),0);
     const eff=ps.reduce((x,p)=>x+Math.max(fcRollup(r,p.key),actualsInPeriod(r.lineIds,p)),0);
     return s+(r.current-r.actuals+wAct-eff); },0);
   $('#budget-body').innerHTML=`<div class="tblwrap"><table class="tbl">
-    <thead><tr><th>Item</th><th class="num">Current value</th><th class="num">Actuals to date</th>
-    ${ps.map(p=>`<th class="num nowrap">${p.label}${p.sub?`<br><span style="font-weight:400;text-transform:none;letter-spacing:0">${p.sub}</span>`:''}</th>`).join('')}<th class="num">Forecast Σ</th><th class="num">Unphased</th><th></th></tr></thead>
-    <tbody>${body}<tr class="tot"><td>Total</td><td class="num nowrap">${money(tCur)}</td><td class="num nowrap">${money(tAct)}</td>${colTot}<td class="num nowrap">${money(tFc)}</td><td class="num nowrap">${money(tUnphased)}</td><td></td></tr></tbody></table></div>
-    <div class="small muted" style="margin-top:8px">Quarters follow the <b>July–June financial year</b> — Q1 FY27 = Jul–Sep 2026. ▶ expands a contract/PO to add <b>forecast lines</b>; you phase on the lines (type a value like <b>5,000</b> or a % of remaining like <b>25%</b>), and the contract row above is the read-only sum of its lines. Several lines can phase the same PO line. Archive a line with 🗄 and use “show archived” to bring them back. Paste tab-separated values from Excel to fill several periods at once. “act” shows invoiced actuals in that period. Each quarter counts the <b>greater of forecast or actual</b> toward the budget, so invoicing a quarter you forecast doesn’t double-count; where an actual differs from the forecast a <span class="fcd over">Δ</span> flags it (red = over forecast, green = under).</div>`;
+    <thead><tr><th>Item</th><th class="num">Current value</th><th class="num nowrap" title="Invoiced within the selected financial-year window">Actuals (period)</th>
+    ${ps.map(p=>`<th class="num nowrap">${p.label}${p.sub?`<br><span style="font-weight:400;text-transform:none;letter-spacing:0">${p.sub}</span>`:''}</th>`).join('')}<th class="num">Forecast Σ</th><th class="num nowrap" title="Budget remaining once the greater of forecast or actual is committed per quarter">Remaining</th><th></th></tr></thead>
+    <tbody>${body}<tr class="tot"><td>Total</td><td class="num nowrap">${money(tCur)}</td><td class="num nowrap">${money(tWinAct)}</td>${colTot}<td class="num nowrap">${money(tFc)}</td><td class="num nowrap">${money(tRemaining)}</td><td></td></tr></tbody></table></div>
+    <div class="small muted" style="margin-top:8px">Quarters follow the <b>July–June financial year</b> — Q1 FY27 = Jul–Sep 2026. ▶ expands a contract/PO to add <b>forecast lines</b>; you phase on the lines (type a value like <b>5,000</b> or a % of remaining like <b>25%</b>), and the contract row above is the read-only sum of its lines. Several lines can phase the same PO line. Archive a line with 🗄 and use “show archived” to bring them back. Paste tab-separated values from Excel to fill several periods at once. “act” shows invoiced actuals in that period. Each quarter counts the <b>greater of forecast or actual</b> toward the budget, so invoicing a quarter you forecast doesn’t double-count; where an actual differs from the forecast a <span class="fcd over">Δ</span> flags it (red = over forecast, green = under). <b>Actuals (period)</b> counts only what’s invoiced inside the chosen financial-year window, and <b>Remaining</b> is the budget still uncommitted once each quarter’s greater-of forecast/actual is taken — set the window to a year and check Remaining to see whether there’s enough budget.</div>`;
 }
 function handleForecastCell(el){ const [ref,key]=el.dataset.fc.split('|'); const raw=el.value.trim();
   if(!raw){ delete S.forecast[ref+'|'+key]; }
@@ -1709,6 +1830,8 @@ function renderCalendar(v){
     <h2 style="margin:0 8px;font-size:20px">${esc(title)}</h2>
     <div class="sp"></div>
     ${tagChips}
+    <span class="pill" data-act="calToggleTasks" title="Show / hide tasks due" style="background:${S.ui.calShowTasks?'var(--ink-2)':'transparent'};color:${S.ui.calShowTasks?'#fff':'var(--ink-2)'};border-color:var(--ink-2)">☐ Tasks</span>
+    <span class="pill" data-act="calToggleDone" title="Show / hide completed actions" style="background:${S.ui.calShowDone?'var(--good)':'transparent'};color:${S.ui.calShowDone?'#fff':'var(--good)'};border-color:var(--good)">✓ Done</span>
     <div class="subtabs" style="margin-left:8px">
       ${['month','week','day'].map(m=>`<button data-act="calMode" data-mode="${m}" class="${mode===m?'on':''}">${m[0].toUpperCase()+m.slice(1)}</button>`).join('')}
     </div>
@@ -1718,7 +1841,7 @@ function renderCalendar(v){
 }
 function evPill(e){ const tag=tagOf((e.tagIds||[])[0]); const col=tag?tag.color:'var(--ink-2)';
   return `<div class="ev" data-act="eventModal" data-id="${e.id}" title="${esc(e.title)}"><span class="dot" style="background:${col}"></span><span class="t">${e.time?'<b>'+esc(e.time)+'</b> ':''}${esc(e.title)}</span></div>`; }
-function taskPill(t){ return `<div class="ev task" data-goto="task:${t.id}" title="Task due: ${esc(t.name)}"><span>☑</span><span class="t">${esc(t.name)}</span></div>`; }
+function taskPill(t){ return `<div class="ev task" data-goto="task:${t.id}" title="Task due: ${esc(t.name)}"><span>☐</span><span class="t">${esc(t.name)}</span></div>`; }
 
 function renderMonth(){
   const d=calDate(); const first=new Date(d.getFullYear(),d.getMonth(),1);
@@ -1726,7 +1849,7 @@ function renderMonth(){
   let cells=''; const today=todayStr();
   for(let i=0;i<42;i++){ const day=new Date(start); day.setDate(start.getDate()+i); const ds=iso(day);
     const dim=day.getMonth()!==d.getMonth();
-    const evs=eventsOn(ds).map(evPill).join(''), tks=tasksDue(ds).map(taskPill).join(''), done=tasksCompleted(ds).map(taskDonePill).join('');
+    const evs=eventsOn(ds).map(evPill).join(''), tks=S.ui.calShowTasks?tasksDue(ds).map(taskPill).join(''):'', done=S.ui.calShowDone?tasksCompleted(ds).map(taskDonePill).join(''):'';
     cells+=`<div class="cal-cell ${dim?'dim':''} ${ds===today?'today':''}">
       <span class="dnum" data-act="calGotoDay" data-date="${ds}" style="cursor:pointer" title="Open day view">${day.getDate()}</span>
       <button class="addbtn" data-act="eventModal" data-date="${ds}" title="Add event">+</button>${evs}${tks}${done}</div>`;
@@ -1736,7 +1859,7 @@ function renderMonth(){
 function renderWeek(weekStart){
   let cells=''; const today=todayStr();
   for(let i=0;i<7;i++){ const day=new Date(weekStart); day.setDate(weekStart.getDate()+i); const ds=iso(day);
-    const evs=eventsOn(ds).map(evPill).join(''), tks=tasksDue(ds).map(taskPill).join(''), done=tasksCompleted(ds).map(taskDonePill).join('');
+    const evs=eventsOn(ds).map(evPill).join(''), tks=S.ui.calShowTasks?tasksDue(ds).map(taskPill).join(''):'', done=S.ui.calShowDone?tasksCompleted(ds).map(taskDonePill).join(''):'';
     cells+=`<div class="cal-cell ${ds===today?'today':''}" style="min-height:340px">
       <span class="dnum" data-act="calGotoDay" data-date="${ds}" style="cursor:pointer">${day.getDate()}</span>
       <span class="muted small"> ${day.toLocaleDateString('en-NZ',{weekday:'short'})}</span>
@@ -1745,7 +1868,7 @@ function renderWeek(weekStart){
   $('#cal-body').innerHTML=`<div class="cal-grid" style="grid-template-columns:repeat(7,1fr)">${cells}</div>`;
 }
 function renderDay(d){ const ds=iso(d);
-  const evs=eventsOn(ds), tks=tasksDue(ds), done=tasksCompleted(ds);
+  const evs=eventsOn(ds), tks=S.ui.calShowTasks?tasksDue(ds):[], done=S.ui.calShowDone?tasksCompleted(ds):[];
   $('#cal-body').innerHTML=`<div class="card"><div class="card-b cal-list">
     ${evs.length?'<div class="day-h">Events</div>'+evs.map(e=>{
       const tags=(e.tagIds||[]).map(id=>{const t=tagOf(id);return t?`<span class="badge" style="background:${t.color}1a;color:${t.color}">${esc(t.name)}</span>`:'';}).join(' ');
@@ -1767,6 +1890,8 @@ ACTIONS.calNav=t=>{ const d=calDate(); const dir=Number(t.dataset.dir); const mo
 ACTIONS.calToday=()=>{ S.ui.calDate=todayStr(); save(); render(); };
 ACTIONS.calMode=t=>{ S.ui.calMode=t.dataset.mode; save(); render(); };
 ACTIONS.calGotoDay=t=>{ S.ui.calDate=t.dataset.date; S.ui.calMode='day'; save(); render(); };
+ACTIONS.calToggleTasks=()=>{ S.ui.calShowTasks=!S.ui.calShowTasks; save(); render(); };
+ACTIONS.calToggleDone=()=>{ S.ui.calShowDone=!S.ui.calShowDone; save(); render(); };
 ACTIONS.toggleTagFilter=t=>{ const id=t.dataset.id; let f=S.ui.tagFilter||[];
   if(!f.length) f=[id]; else if(f.includes(id)){ f=f.filter(x=>x!==id); } else f.push(id);
   if(f.length===S.settings.eventTags.length) f=[];
@@ -1899,7 +2024,7 @@ function taskHTML(t,hide,depth){
     <div class="task-row ${st.done?'done':''}" data-anchor="task:${t.id}">
       ${drag}${caret}
       <span class="prio ${pr?'':'none'}" data-act="cyclePriority" data-id="${t.id}" title="${pr?esc(pr.name):'Set priority'}" ${pr?`style="background:${pr.color}"`:''}>${pr?esc(pr.name.split(' ')[0]):'⚑'}</span>
-      <span class="pill" data-act="cycleState" data-id="${t.id}" style="background:${st.color}1c;color:${st.color};border-color:${st.color}55" title="Click to change state">${esc(st.name)}</span>
+      <select class="pillsel" onchange="setTaskState('${t.id}',this.value)" style="background:${st.color}1c;color:${st.color};border-color:${st.color}55" title="Change state — pick any, including back to To do">${S.settings.taskStates.map(s=>`<option value="${s.id}" ${s.id===t.stateId?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
       <input class="tname" value="${esc(t.name)}" placeholder="Task…" data-tname="${t.id}">
       <span class="tlinks">${(t.tagIds||[]).map(id=>{const tg=taskTagOf(id);return tg?`<span class="chip" data-act="taskTagMenu" data-id="${t.id}" style="border-color:${tg.color};background:${tg.color}1a">${esc(tg.name)}</span>`:'';}).join('')}${(t.links||[]).map(l=>chipHTML(l,'task:'+t.id)).join('')}</span>
       ${(t.notes||t.showNotes)?`<span class="notebtn ${t.showNotes?'open':''}" data-act="taskNotes" data-id="${t.id}" title="Notes — click to ${t.showNotes?'hide':'view'}">🗒 ${t.showNotes?'▾':'▸'}</span>`:''}
@@ -1945,6 +2070,11 @@ ACTIONS.cycleState=el=>{ const r=findTask(el.dataset.id); if(!r) return;
   const states=S.settings.taskStates; const i=states.findIndex(s=>s.id===r.t.stateId);
   r.t.stateId=states[(i+1)%states.length].id; touch(r.t);
   const ns=stateOf(r.t.stateId); // completion date shows on the calendar
+  if(ns.done&&!r.t.completed) r.t.completed=todayStr();
+  if(!ns.done) r.t.completed='';
+  save(); render(); };
+window.setTaskState=(id,val)=>{ const r=findTask(id); if(!r) return;
+  r.t.stateId=val; touch(r.t); const ns=stateOf(val);
   if(ns.done&&!r.t.completed) r.t.completed=todayStr();
   if(!ns.done) r.t.completed='';
   save(); render(); };
@@ -2073,7 +2203,38 @@ function gridBlock(preset,nrows){ const cols=GRID_PRESETS[preset].map(c=>({...c}
 /* ---- note page templates ---- */
 function tBlocks(spec){ return spec.map(s=>{ const b=newBlock(s[0]);
   if(s[0]==='table'){ b.rows=s[1]; } else if(s[0]==='grid'){ return gridBlock(s[1],s[2]); } else b.html=s[1]||''; return b; }); }
+/* friendly in-app welcome / guide (mirrors the README); seeded as the first notes page but fully deletable */
+function guideBlocks(){ return tBlocks([
+  ['h1','👋 Welcome to your Programme Manager'],
+  ['callout','A single-file workspace — budgets, a calendar, an action list and free-form notes, all saved to this browser. Nothing leaves your computer. Delete this page any time (the ⋮⋮ menu on a block, or add your own pages with ＋ Page).'],
+  ['h2','Getting started'],
+  ['bullet','Everything autosaves as you type — look for the “Saved” time in the top-right.'],
+  ['bullet','💾 Save writes a portable programme file; 📂 Open loads one. Drop that file (or a 📝 Markdown snapshot) into an AI model for analysis.'],
+  ['bullet','📥 Data does a spreadsheet round-trip of your contracts and finances; 📊 Excel exports a full workbook.'],
+  ['h2','The four tabs'],
+  ['h3','💰 Budget'],
+  ['bullet','Overview — a read-only summary, one row per contract and standalone PO. Filter by supplier, contract # or WBS, and tick “in FY” to scope actuals to a financial year.'],
+  ['bullet','Contracts · POs · Lines — the detail: contracts hold POs, which hold lines; invoices attach to lines; variations sit on the contract.'],
+  ['bullet','Forecast & phasing — phase spend by quarter across the July–June year. Each quarter counts the greater of forecast or actual, a Δ flags any invoice that differs from forecast, and “Remaining” shows whether there’s budget left.'],
+  ['callout','Tip: in Forecast, set a planned item’s status to “Committed” to turn it into a real contract — any task linked to it follows across.'],
+  ['h3','📅 Calendar'],
+  ['bullet','Month, week or day views; events carry tags, an organiser and notes.'],
+  ['bullet','Tasks due show as ☐ and completed actions as ✓ on their completion date — toggle them with the ☐ Tasks / ✓ Done chips in the toolbar.'],
+  ['h3','☑ Actions'],
+  ['bullet','An endlessly nestable task list — Enter adds the next task, Tab / Shift-Tab nests or un-nests.'],
+  ['bullet','Pick any state from the dropdown (including back to “To do”), set a priority flag, owner, tags, links and a due date. “★ This week” focuses on what’s prioritised or due.'],
+  ['h3','📝 Notes'],
+  ['bullet','Notion-style pages — press “/” in any block for headings, bullets, toggles, callouts, tables and links. Templates cover marketing plans, M&E frameworks, stakeholder lists and behaviour-change approaches.'],
+  ['h2','Linking everything together'],
+  ['bullet','Anything can link to anything — tasks ↔ contracts, PO lines, events, forecast lines and notes. Links are clickable chips that jump to and highlight the target.'],
+  ['h2','Working across programmes'],
+  ['bullet','Use the switcher under the programme name to jump between programmes, or pick “All programmes (overview)” for a unified budget, calendar and action list grouped by programme.'],
+  ['divider',''],
+  ['p','Comfortable already? Delete this page — everything here also lives in the README.'],
+]); }
+function guidePageObj(){ return {id:uid(),name:'Welcome & guide',icon:'📖',kind:'doc',guide:true,blocks:guideBlocks()}; }
 const NOTE_TEMPLATES={
+  guide:{name:'Welcome & guide',icon:'📖',blocks:()=>guideBlocks()},
   blank:{name:'Blank page',icon:'📄',blocks:()=>[newBlock('h1'),newBlock('p')]},
   marketing:{name:'Marketing plan',icon:'📣',blocks:()=>tBlocks([
     ['h1','Marketing plan'],
