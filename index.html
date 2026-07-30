@@ -128,6 +128,12 @@ tr.fc-planned>td{background:#f4f1fa}
 .pill{display:inline-flex;align-items:center;gap:5px;border-radius:99px;padding:2px 10px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid transparent;white-space:nowrap}
 .pillsel{border-radius:99px;padding:2px 6px 2px 10px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid transparent;white-space:nowrap;-webkit-appearance:none;appearance:none;font-family:inherit}
 #progSwitch{margin-left:8px;font:inherit;font-size:12px;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:7px;padding:2px 4px;max-width:210px;cursor:pointer}
+.msf{position:relative;display:inline-block}
+.msf-pop{position:absolute;top:calc(100% + 3px);left:0;z-index:60;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);padding:6px;min-width:190px}
+.msf-list{max-height:220px;overflow:auto;margin-top:2px}
+.msf-opt{display:flex;align-items:center;gap:6px;padding:3px 6px;font-size:13px;white-space:nowrap;cursor:pointer;border-radius:5px}
+.msf-opt:hover{background:var(--sel)}
+.msf-search{width:100%;margin-bottom:4px;font:inherit;font-size:12px;padding:3px 6px;border:1px solid var(--line);border-radius:6px}
 .badge{display:inline-block;border-radius:6px;padding:1px 7px;font-size:11.5px;font-weight:600}
 .badge.ok{background:var(--good-soft);color:var(--good)}
 .badge.warn{background:var(--warn-soft);color:var(--warn)}
@@ -304,7 +310,7 @@ input[type=color]{padding:0;width:34px;height:28px;border-radius:6px;cursor:poin
 </head>
 <body>
 <header>
-  <div class="brand"><span class="mark">M</span><span id="progName" contenteditable="true" spellcheck="false"></span><select id="progSwitch" title="Switch programme, or see all together"></select></div>
+  <div class="brand"><span class="mark">M</span><span id="progName" contenteditable="true" spellcheck="false"></span><select id="progSwitch" title="Switch programme, or see all together"></select><button id="fileLabel" class="btn sm ghost" data-act="fileInfo" title="Where this programme saves"></button></div>
   <nav class="tabs" id="tabs">
     <button data-tab="budget">Budget</button>
     <button data-tab="calendar">Calendar</button>
@@ -313,11 +319,9 @@ input[type=color]{padding:0;width:34px;height:28px;border-radius:6px;cursor:poin
   </nav>
   <div class="hd-actions">
     <span class="stamp" id="stamp"></span>
-    <button class="btn sm" data-act="saveJSON" title="Save programme file (JSON)">💾 Save</button>
-    <button class="btn sm" data-act="openJSON" title="Open programme file">📂 Open</button>
-    <button class="btn sm" data-act="importCSV" title="Download data to Excel, edit, and re-upload">📥 Data</button>
-    <button class="btn sm" data-act="exportExcel" title="Export to Excel">📊 Excel</button>
-    <button class="btn sm" data-act="exportMD" title="Export Markdown snapshot (AI-friendly)">📝 Markdown</button>
+    <button class="btn sm" data-act="saveJSON" title="Save this programme to its own file">💾 Save</button>
+    <button class="btn sm" data-act="openJSON" title="Open a programme file">📂 Open</button>
+    <button class="btn sm" data-act="importCSV" title="Export (Excel / Markdown / JSON) and bulk import">📥 Data</button>
     <button class="btn sm ghost" data-act="trash" title="Recently deleted — restore items">🗑<span id="trashCount"></span></button>
     <button class="btn sm ghost" data-act="settings" title="Settings">⚙</button>
   </div>
@@ -354,7 +358,7 @@ const dstr=d=>d?new Date(d+'T00:00').toLocaleDateString('en-NZ',{day:'numeric',m
 let S=null, lsKey=null, TAB='budget';
 
 function defaultState(name){return {
-  v:7,
+  v:8,
   programme:{name:name||'New Programme',currency:'$',created:todayStr(),modified:''},
   settings:{
     taskStates:[
@@ -404,9 +408,9 @@ function defaultState(name){return {
   structViews:[],// saved contract-page views {id,name,filter,mode}
   fcViews:[],    // saved forecast views {id,name,start,count,filter}
   ui:{budgetTab:'lines',calMode:'month',calDate:todayStr(),view:'full',hideDone:false,
-      budgetArch:'hide',structView:'active',structFilter:'',structF:{supplier:'',wbs:'',contract:''},
-      fcFilter:'',fcF:{supplier:'',wbs:'',contract:''},fcView:'',fcOpen:{},
-      ovF:{supplier:'',wbs:'',contract:''},ovWindow:false,calShowTasks:true,calShowDone:true,
+      budgetArch:'hide',structView:'active',structFilter:'',structF:{supplier:[],wbs:[],contract:[]},
+      fcFilter:'',fcF:{supplier:[],wbs:[],contract:[]},fcView:'',fcOpen:{},
+      ovF:{supplier:[],wbs:[],contract:[]},ovWindow:false,calShowTasks:true,calShowDone:true,
       structCollapsed:{},poCollapsed:{},notePage:'',taskGroup:'',taskWeekOnly:false,fcArch:'active'},
 };}
 function fyStartKey(){ const d=new Date(); const y=d.getMonth()+1>=7?d.getFullYear():d.getFullYear()-1; return y+'-07'; }
@@ -427,10 +431,20 @@ function allProgrammes(){ return listLocal().map(p=>{ try{ return {key:p.key,nam
 function withState(st,fn){ const prev=S; S=st; try{ return fn(); } finally{ S=prev; } } // run read-only compute against another programme's state
 function updateProgSwitch(){ const sel=$('#progSwitch'); if(!sel) return; const list=listLocal();
   sel.innerHTML=`<option value="__ov" ${OVERVIEW?'selected':''}>★ All programmes (overview)</option>`
-    +list.map(p=>`<option value="${esc(p.key)}" ${!OVERVIEW&&p.key===lsKey?'selected':''}>${esc(p.name)}</option>`).join(''); }
+    +list.map(p=>`<option value="${esc(p.key)}" ${!OVERVIEW&&p.key===lsKey?'selected':''}>${esc(p.name)}</option>`).join('')
+    +`<option value="__new">＋ New programme…</option>`; }
+function newProgrammePrompt(){
+  modal(`<div class="m-h"><h3>New programme</h3></div><div class="m-b">
+    <label class="f"><span>Programme name</span><input id="npname" placeholder="e.g. Henderson Hubs" autocomplete="off"></label>
+    <div class="small muted" style="margin-top:6px">Creates a fresh, separate programme saved to this browser. You can link it to its own file with 💾 Save.</div>
+  </div><div class="m-f"><button class="btn" data-act="closeModal">Cancel</button>
+    <button class="btn primary" data-act="createProgrammeGo">Create</button></div>`);
+  setTimeout(()=>{ const i=$('#npname'); if(i){ i.focus(); i.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); createProgrammeGo(); } }; } },40);
+}
+function createProgrammeGo(){ const name=($('#npname').value||'').trim(); if(!name) return toast('Give the programme a name'); closeModal(); createProgramme(name); }
 function enterOverview(){ OVERVIEW=true; document.title='All programmes — Programme Manager';
   const pn=$('#progName'); pn.textContent='All programmes'; pn.setAttribute('contenteditable','false');
-  updateProgSwitch(); if(TAB==='status') TAB='budget'; render(); }
+  updateProgSwitch(); refreshFileLabel(); if(TAB==='status') TAB='budget'; render(); }
 
 function boot(){
   const last=localStorage.getItem('progapp:last');
@@ -450,6 +464,7 @@ function openKey(key){
 }
 function createProgramme(name){
   S=defaultState(name); lsKey='progapp:data:'+slug(name)+'-'+uid().slice(-4);
+  OVERVIEW=false; $('#progName').setAttribute('contenteditable','true');
   localStorage.setItem('progapp:last',lsKey); save();
   $('#start').classList.remove('show'); initUI();
 }
@@ -521,6 +536,11 @@ function migrate(d){ const def=defaultState('x');
     if(!d.notes.some(p=>p.guide)) d.notes.unshift(guidePageObj());
     d.v=7;
   }
+  if(d.v<8){ // v7 → v8: filter values become multi-select arrays
+    ['structF','fcF','ovF'].forEach(k=>{ const o=d.ui[k]; if(!o){ d.ui[k]={supplier:[],wbs:[],contract:[]}; return; }
+      ['supplier','wbs','contract'].forEach(f=>{ if(typeof o[f]==='string') o[f]=o[f]?[o[f]]:[]; if(!Array.isArray(o[f])) o[f]=[]; }); });
+    d.v=8;
+  }
   (d.fcLines||[]).forEach(f=>{ if(f.archived===undefined) f.archived=false; if(f.supplier===undefined) f.supplier=''; });
   if(!d.notes||!d.notes.length) d.notes=[{id:uid(),name:'Notes',icon:'📝',blocks:[{id:uid(),type:'h1',html:'Notes'},{id:uid(),type:'p',html:''}]}];
   (d.contracts||[]).forEach(c=>{ if(!c.variations) c.variations=[]; });
@@ -528,13 +548,17 @@ function migrate(d){ const def=defaultState('x');
   if(!d.ui.fcOpen) d.ui.fcOpen={};
   if(!d.ui.structCollapsed) d.ui.structCollapsed={};
   if(!d.ui.poCollapsed) d.ui.poCollapsed={};
-  if(!d.ui.structF) d.ui.structF={supplier:'',wbs:'',contract:''};
-  if(!d.ui.fcF) d.ui.fcF={supplier:'',wbs:'',contract:''};
+  if(!d.ui.structF) d.ui.structF={supplier:[],wbs:[],contract:[]};
+  if(!d.ui.fcF) d.ui.fcF={supplier:[],wbs:[],contract:[]};
+  if(!d.ui.ovF) d.ui.ovF={supplier:[],wbs:[],contract:[]};
   if(d.fcCfg) d.fcCfg.gran='quarter';
   if(!d.links) d.links=[];
   if(!d.trash) d.trash=[];
   return d;
 }
+function replaceStateInPlace(obj){ // update ALL data of the CURRENT programme (keeps its storage key + file link)
+  if(!obj||!obj.programme){ toast('Not a valid programme file'); return false; }
+  S=migrate(obj); localStorage.setItem('progapp:last',lsKey); save(); initUI(); return true; }
 function importState(obj){
   if(!obj||!obj.programme){ toast('Not a valid programme file'); return; }
   S=migrate(obj); lsKey='progapp:data:'+slug(S.programme.name)+'-'+uid().slice(-4);
@@ -546,7 +570,7 @@ function importState(obj){
 function initUI(){
   $('#progName').textContent=S.programme.name;
   document.title=S.programme.name+' — Programme Manager';
-  updateProgSwitch();
+  updateProgSwitch(); refreshFileLabel();
   setTab(TAB);
 }
 function setTab(name){
@@ -568,7 +592,7 @@ function render(){
   else if(TAB==='calendar') renderCalendar(v);
   else if(TAB==='actions') renderTasks(v);
   else if(TAB==='status') renderStatus(v);
-  refreshTrashCount();
+  refreshTrashCount(); reopenMsf();
 }
 
 /* ---- unified overview renderers (read-only, aggregate every programme) ---- */
@@ -791,6 +815,7 @@ let toastTimer=null;
 function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),2200); }
 
 const ACTIONS={}, FORMS={};
+ACTIONS.createProgrammeGo=createProgrammeGo;
 document.addEventListener('click',e=>{
   const g=e.target.closest('[data-goto]');
   if(g&&!e.target.closest('.x')){ e.preventDefault(); gotoRef(g.dataset.goto); return; }
@@ -808,7 +833,7 @@ document.addEventListener('submit',e=>{
 });
 $('#progName').addEventListener('blur',()=>{ S.programme.name=$('#progName').textContent.trim()||S.programme.name; $('#progName').textContent=S.programme.name; document.title=S.programme.name+' — Programme Manager'; save(); });
 $('#progName').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();e.target.blur();} });
-$('#progSwitch').addEventListener('change',e=>{ const v=e.target.value; if(v==='__ov') enterOverview(); else if(v) openKey(v); });
+$('#progSwitch').addEventListener('change',e=>{ const v=e.target.value; if(v==='__ov') enterOverview(); else if(v==='__new'){ updateProgSwitch(); newProgrammePrompt(); } else if(v) openKey(v); });
 
 /* data-bind="collection.id.field" (collections) or "path.field" for S.programme etc */
 function handleBind(el){
@@ -1093,26 +1118,25 @@ function renderBudgetLines(){
       <option value="show" ${S.ui.budgetArch==='show'?'selected':''}>Show all</option>
       <option value="only" ${S.ui.budgetArch==='only'?'selected':''}>Archived only</option>
     </select>
-    ${filterSelect('o-supplier','Supplier',S.ui.ovF.supplier,supplierOptions())}
-    ${filterSelect('o-contract','Contract #',S.ui.ovF.contract,contractNoOptions())}
-    ${filterSelect('o-wbs','WBS',S.ui.ovF.wbs,wbsOptions())}
+    ${msFilter('ov','supplier','Supplier',supplierOptions(),S.ui.ovF.supplier)}
+    ${msFilter('ov','contract','Contract #',contractNoOptions(),S.ui.ovF.contract)}
+    ${msFilter('ov','wbs','WBS',wbsOptions(),S.ui.ovF.wbs)}
     <span class="small muted nowrap" style="margin-left:6px" title="Financial year window — shared with Forecast & phasing">FY</span>
     <select data-act="none" id="ovFY" title="Financial year window (Jul–Jun), shared with Forecast">
       ${fyOptions().map(o=>`<option value="${o.start}" ${S.fcCfg.start===o.start?'selected':''}>${o.label}</option>`).join('')}
     </select>
     <label class="small nowrap" title="Scope the Actuals column to the selected financial year"><input type="checkbox" id="ovWin" ${S.ui.ovWindow?'checked':''}> in FY</label>
-    ${(S.ui.ovF.supplier||S.ui.ovF.contract||S.ui.ovF.wbs)?'<button class="btn sm ghost" data-act="ovClearF">clear</button>':''}
+    ${(S.ui.ovF.supplier.length||S.ui.ovF.contract.length||S.ui.ovF.wbs.length)?'<button class="btn sm ghost" data-act="ovClearF">clear</button>':''}
     <button class="btn sm" data-act="customView">✎ Custom view</button>`;
   $('#viewSel').onchange=e=>{ S.ui.view=e.target.value; save(); render(); };
   $('#archSel').onchange=e=>{ S.ui.budgetArch=e.target.value; save(); render(); };
   const ovfy=$('#ovFY'); if(ovfy) ovfy.onchange=e=>{ S.fcCfg.start=e.target.value; S.fcCfg.gran='quarter'; save(); render(); };
   const ovwin=$('#ovWin'); if(ovwin) ovwin.onchange=e=>{ S.ui.ovWindow=e.target.checked; save(); render(); };
-  $$('#budget-tools [data-fsel]').forEach(sel=>sel.onchange=e=>{ S.ui.ovF[e.target.dataset.fsel.slice(2)]=e.target.value; save(); render(); });
 
   const cols=BUDGET_COLS.filter(c=>view.cols.includes(c.k));
   const OF=S.ui.ovF;
   let rows=overviewRows().filter(r=>S.ui.budgetArch==='show'||(S.ui.budgetArch==='only'?r.archived:!r.archived));
-  rows=rows.filter(r=>(!OF.supplier||r.supplier===OF.supplier)&&(!OF.contract||r.contractNo===OF.contract)&&(!OF.wbs||(r.wbsList||[]).includes(OF.wbs)));
+  rows=rows.filter(r=>(!OF.supplier.length||OF.supplier.includes(r.supplier))&&(!OF.contract.length||OF.contract.includes(r.contractNo))&&(!OF.wbs.length||(r.wbsList||[]).some(w=>OF.wbs.includes(w))));
   if(S.ui.ovWindow){ const ps=periodList(); rows.forEach(r=>{ r.actuals=ps.reduce((s,p)=>s+actualsInPeriod(r.lineIds||[],p),0); }); }
   if(view.filter){ const q=view.filter.toLowerCase();
     rows=rows.filter(r=>[r.what,r.supplier,r.contractNo,r.poNo,r.notes].join(' ').toLowerCase().includes(q)); }
@@ -1160,7 +1184,7 @@ function renderBudgetLines(){
       <button class="btn primary" data-act="contractModal">+ Add a contract</button>
       <button class="btn" data-act="importCSV">📥 Import from CSV</button></div></div>`;
 }
-ACTIONS.ovClearF=()=>{ S.ui.ovF={supplier:'',wbs:'',contract:''}; save(); render(); };
+ACTIONS.ovClearF=()=>{ S.ui.ovF={supplier:[],wbs:[],contract:[]}; save(); render(); };
 ACTIONS.delBudgetRow=t=>{ const r=byId(S.budget,t.dataset.id); if(!confirm('Delete this budget line? You can restore it from Trash.')) return; trashPush('Budget line',(r&&r.what)||'Budget line',{budget:[r]}); S.budget=S.budget.filter(b=>b.id!==t.dataset.id); save(); render(); };
 ACTIONS.archBudget=t=>{ const r=byId(S.budget,t.dataset.id); if(r){ r.archived=!r.archived; save(); render(); toast(r.archived?'Budget line archived':'Budget line restored'); } };
 ACTIONS.showBacklinks=t=>{ const refs=backlinksTo(t.dataset.ref);
@@ -1225,12 +1249,39 @@ const supplierOptions=()=>uniq([...S.contracts.map(c=>c.supplier),...S.pos.filte
 const contractNoOptions=()=>uniq(S.contracts.map(c=>c.contractNumber));
 const wbsOptions=()=>uniq(S.poLines.map(l=>l.wbs));
 function filterSelect(id,label,value,options){ return `<select data-fsel="${id}" title="Filter by ${label}"><option value="">${label}: all</option>${options.map(o=>`<option value="${esc(o)}" ${value===o?'selected':''}>${esc(o)}</option>`).join('')}</select>`; }
-function contractMatchesF(c,F){ if(F.supplier&&c.supplier!==F.supplier) return false;
-  if(F.contract&&c.contractNumber!==F.contract) return false;
-  if(F.wbs&&!posOfContract(c.id).some(p=>linesOfPO(p.id).some(l=>l.wbs===F.wbs))) return false; return true; }
-function poMatchesF(p,F){ if(F.supplier&&(p.supplier||'')!==F.supplier) return false;
-  if(F.contract) return false; // standalone POs have no contract number
-  if(F.wbs&&!linesOfPO(p.id).some(l=>l.wbs===F.wbs)) return false; return true; }
+/* ---- Excel-style multi-select tick-box filter (scope: 'ov' | 'struct' | 'fc'; field: supplier|contract|wbs) ---- */
+function msFilter(scope,field,label,options,selected){
+  selected=(selected||[]).filter(v=>options.includes(v));
+  const n=selected.length; const summary=n===0?'all':(n===1?(selected[0]||'(blank)'):n+' selected');
+  return `<span class="msf" data-msf="${scope}:${field}">
+    <button type="button" class="btn sm msf-btn ${n?'accent':''}" data-act="msfToggle" title="Filter by ${esc(label)} — tick any number">${esc(label)}: ${esc(summary)} ▾</button>
+    <div class="msf-pop" hidden>
+      <input class="msf-search" placeholder="Search ${esc(label)}…" oninput="msfSearch(this)">
+      <label class="msf-opt"><input type="checkbox" data-msfall ${n===0?'checked':''} onchange="msfChange(this)"> <b>(All)</b></label>
+      <div class="msf-list">${options.map(o=>`<label class="msf-opt"><input type="checkbox" value="${esc(o)}" ${selected.includes(o)?'checked':''} onchange="msfChange(this)"> ${o!==''?esc(o):'<span class="muted">(blank)</span>'}</label>`).join('')||'<div class="muted small" style="padding:4px 6px">No options</div>'}</div>
+    </div></span>`;
+}
+function msfState(scope){ return scope==='ov'?S.ui.ovF:scope==='fc'?S.ui.fcF:S.ui.structF; }
+let msfOpen=null; // 'scope:field' of the popover to keep open across the live-filter re-render
+window.msfChange=el=>{ const wrap=el.closest('.msf'); const pop=wrap.querySelector('.msf-pop'); const [scope,field]=wrap.dataset.msf.split(':');
+  const allBox=pop.querySelector('[data-msfall]'); const boxes=[...pop.querySelectorAll('.msf-list input')];
+  if(el.hasAttribute('data-msfall')){ if(el.checked) boxes.forEach(b=>b.checked=false); else if(!boxes.some(b=>b.checked)) el.checked=true; }
+  else { if(el.checked) allBox.checked=false; if(!boxes.some(b=>b.checked)) allBox.checked=true; }
+  msfState(scope)[field]=allBox.checked?[]:boxes.filter(b=>b.checked).map(b=>b.value);
+  msfOpen=wrap.dataset.msf; save(); render(); };
+window.msfSearch=el=>{ const q=el.value.toLowerCase(); el.closest('.msf-pop').querySelectorAll('.msf-list .msf-opt').forEach(o=>{ o.style.display=o.textContent.toLowerCase().includes(q)?'':'none'; }); };
+ACTIONS.msfToggle=t=>{ const wrap=t.closest('.msf'); const pop=wrap.querySelector('.msf-pop'); const willOpen=pop.hidden;
+  document.querySelectorAll('.msf-pop').forEach(p=>p.hidden=true);
+  if(willOpen){ pop.hidden=false; msfOpen=wrap.dataset.msf; const s=pop.querySelector('.msf-search'); if(s) setTimeout(()=>s.focus(),20); } else msfOpen=null; };
+function reopenMsf(){ if(!msfOpen) return; const wrap=document.querySelector(`.msf[data-msf="${msfOpen}"]`); if(wrap){ const pop=wrap.querySelector('.msf-pop'); if(pop) pop.hidden=false; } }
+document.addEventListener('click',e=>{ if(!e.target.closest('.msf')&&msfOpen){ msfOpen=null; document.querySelectorAll('.msf-pop').forEach(p=>p.hidden=true); } });
+const fsel=(F,k)=>(F&&F[k])||[]; // tolerant accessor (arrays)
+function contractMatchesF(c,F){ if(fsel(F,'supplier').length&&!F.supplier.includes(c.supplier)) return false;
+  if(fsel(F,'contract').length&&!F.contract.includes(c.contractNumber)) return false;
+  if(fsel(F,'wbs').length&&!posOfContract(c.id).some(p=>linesOfPO(p.id).some(l=>F.wbs.includes(l.wbs)))) return false; return true; }
+function poMatchesF(p,F){ if(fsel(F,'supplier').length&&!F.supplier.includes(p.supplier||'')) return false;
+  if(fsel(F,'contract').length) return false; // standalone POs have no contract number
+  if(fsel(F,'wbs').length&&!linesOfPO(p.id).some(l=>F.wbs.includes(l.wbs))) return false; return true; }
 function structModeOf(viewId){ return STRUCT_TEMPLATES.some(t=>t.id===viewId)?viewId:(byId(S.structViews,viewId)||{}).mode||'active'; }
 function structVisible(archived,mode){ return mode==='all'?true:(mode==='archived'?!!archived:!archived); }
 function structTextMatch(strings,q){ return !q||strings.join(' ').toLowerCase().includes(q); }
@@ -1244,14 +1295,13 @@ function renderStructure(){
       ${STRUCT_TEMPLATES.map(t=>`<option value="${t.id}" ${viewId===t.id?'selected':''}>${esc(t.name)}</option>`).join('')}
       ${S.structViews.length?'<optgroup label="Saved views">'+S.structViews.map(t=>`<option value="${t.id}" ${viewId===t.id?'selected':''}>${esc(t.name)}</option>`).join('')+'</optgroup>':''}
     </select>
-    ${filterSelect('s-supplier','Supplier',F.supplier,supplierOptions())}
-    ${filterSelect('s-contract','Contract #',F.contract,contractNoOptions())}
-    ${filterSelect('s-wbs','WBS',F.wbs,wbsOptions())}
-    ${(F.supplier||F.contract||F.wbs)?'<button class="btn sm ghost" data-act="structClearF">clear</button>':''}
+    ${msFilter('struct','supplier','Supplier',supplierOptions(),F.supplier)}
+    ${msFilter('struct','contract','Contract #',contractNoOptions(),F.contract)}
+    ${msFilter('struct','wbs','WBS',wbsOptions(),F.wbs)}
+    ${(F.supplier.length||F.contract.length||F.wbs.length)?'<button class="btn sm ghost" data-act="structClearF">clear</button>':''}
     <button class="btn sm" data-act="poModal" title="Add a PO with no contract">+ PO (standalone)</button>
     <button class="btn sm primary" data-act="contractModal">+ Contract</button>`;
   $('#structViewSel').onchange=e=>{ S.ui.structView=e.target.value; save(); render(); };
-  $$('#budget-tools [data-fsel]').forEach(sel=>sel.onchange=e=>{ const k=e.target.dataset.fsel.slice(2); S.ui.structF[k]=e.target.value; save(); render(); });
 
   const contracts=S.contracts.filter(c=>{
     if(!structVisible(c.archived,mode)) return false;
@@ -1342,7 +1392,7 @@ ACTIONS.saveStructView=()=>{ const name=prompt('Name this view (saves the curren
   S.structViews.push({id:uid(),name:name.trim(),filter:S.ui.structFilter||'',mode:structModeOf(S.ui.structView||'active')});
   S.ui.structView=S.structViews[S.structViews.length-1].id; save(); render(); toast('View saved'); };
 ACTIONS.delStructView=t=>{ S.structViews=S.structViews.filter(v=>v.id!==t.dataset.id); S.ui.structView='active'; save(); render(); };
-ACTIONS.structClearF=()=>{ S.ui.structF={supplier:'',wbs:'',contract:''}; save(); render(); };
+ACTIONS.structClearF=()=>{ S.ui.structF={supplier:[],wbs:[],contract:[]}; save(); render(); };
 ACTIONS.archContract=t=>{ const c=contractOf(t.dataset.id); if(c){ c.archived=!c.archived; save(); render(); toast(c.archived?'Contract archived':'Contract restored'); } };
 ACTIONS.archPO=t=>{ const p=poOf(t.dataset.id); if(p){ p.archived=!p.archived; save(); render(); toast(p.archived?'PO archived':'PO restored'); } };
 ACTIONS.archLine=t=>{ const l=lineOf(t.dataset.id); if(l){ l.archived=!l.archived; save(); render(); toast(l.archived?'PO line archived':'PO line restored'); } };
@@ -1522,9 +1572,9 @@ function fcTopRows(){ // contracts + standalone POs + a Planned bucket, each wit
     rows.push({ref:'po:'+p.id,label:'PO '+(p.poNumber||'?')+(p.supplier?' · '+p.supplier:''),sub:'Standalone PO',
       current:poLinesSum(p.id),actuals:poActuals(p.id),lineIds:linesOfPO(p.id).map(l=>l.id),children:fcChildren('po:'+p.id)});
   });
-  if(!F.contract&&!F.wbs){ // Planned bucket (no contract/WBS to match against)
-    const pk=fcChildren('planned').filter(ch=>!F.supplier||(ch.f.supplier||'')===F.supplier);
-    if(!F.supplier||pk.length) rows.push({ref:'planned',label:'Planned (not yet contracted)',sub:'Planning',
+  if(!fsel(F,'contract').length&&!fsel(F,'wbs').length){ // Planned bucket (no contract/WBS to match against)
+    const pk=fcChildren('planned').filter(ch=>!fsel(F,'supplier').length||F.supplier.includes(ch.f.supplier||''));
+    if(!fsel(F,'supplier').length||pk.length) rows.push({ref:'planned',label:'Planned (not yet contracted)',sub:'Planning',
       current:pk.reduce((s,ch)=>s+ch.current,0),actuals:0,lineIds:[],children:pk,planned:true});
   }
   return rows;
@@ -1566,14 +1616,13 @@ function renderForecast(){
       ${fyOptions().map(o=>`<option value="${o.start}" ${cfg.start===o.start?'selected':''}>${o.label}</option>`).join('')}
     </select>
     <select data-bind="fcCfg.count" data-type="num" title="How many quarters">${[4,8,12].map(n=>`<option value="${n}" ${cfg.count===n?'selected':''}>${n} quarters</option>`).join('')}</select>
-    ${filterSelect('f-supplier','Supplier',F.supplier,supplierOptions())}
-    ${filterSelect('f-contract','Contract #',F.contract,contractNoOptions())}
-    ${filterSelect('f-wbs','WBS',F.wbs,wbsOptions())}
-    ${(F.supplier||F.contract||F.wbs)?'<button class="btn sm ghost" data-act="fcClearF">clear</button>':''}
+    ${msFilter('fc','supplier','Supplier',supplierOptions(),F.supplier)}
+    ${msFilter('fc','contract','Contract #',contractNoOptions(),F.contract)}
+    ${msFilter('fc','wbs','WBS',wbsOptions(),F.wbs)}
+    ${(F.supplier.length||F.contract.length||F.wbs.length)?'<button class="btn sm ghost" data-act="fcClearF">clear</button>':''}
     <label class="small nowrap" title="Show archived forecast lines"><input type="checkbox" id="fcArchChk" ${S.ui.fcArch==='show'?'checked':''}> show archived</label>`;
   const fca=$('#fcArchChk'); if(fca) fca.onchange=e=>{ S.ui.fcArch=e.target.checked?'show':'active'; save(); render(); };
   const fy=$('#fcFY'); if(fy) fy.onchange=e=>{ S.fcCfg.start=e.target.value; S.fcCfg.gran='quarter'; save(); render(); };
-  $$('#budget-tools [data-fsel]').forEach(sel=>sel.onchange=e=>{ S.ui.fcF[e.target.dataset.fsel.slice(2)]=e.target.value; save(); render(); });
   const rows=fcTopRows();
   // committed lines (under a contract/PO) can be committed / in progress / complete; planned items are 'planned'
   const committedStatuses=()=>(S.settings.fcStatuses||[]).filter(s=>s.id!=='planned');
@@ -1604,6 +1653,7 @@ function renderForecast(){
         </td>
         <td class="num nowrap"><input class="num" data-bind="fcLines.${f.id}.plannedValue" data-type="num" value="${f.plannedValue?fmt(f.plannedValue):''}" placeholder="est. value" style="width:100px"></td>
         <td class="num nowrap muted small">—</td>
+        <td class="num nowrap muted small">—</td>
         ${cells}
         <td class="num nowrap">${money(fcTot)}</td>
         <td class="num nowrap muted small">—</td>
@@ -1626,6 +1676,7 @@ function renderForecast(){
       </td>
       <td class="num nowrap muted small" title="PO line value (shared if several forecast lines use this PO line)">${ch.lineIds.length?money(ch.current):'—'}</td>
       <td class="num nowrap muted small" title="Invoiced within the selected financial-year window">${ch.lineIds.length?money(windowAct):'—'}</td>
+      <td class="num nowrap muted small" title="Line value − actuals to date">${ch.lineIds.length?money(ch.current-ch.actuals):'—'}</td>
       ${cells}
       <td class="num nowrap">${money(fcTot)}</td>
       <td class="num nowrap muted small" title="Line value − the greater of its forecast or its actuals">${ch.lineIds.length?money(remain):'—'}</td>
@@ -1646,12 +1697,13 @@ function renderForecast(){
         <span class="fc-caret" data-act="fcToggle" data-ref="${row.ref}" title="Forecast line detail">${open?'▼':'▶'}</span>
         <b>${esc(row.label)}</b>${row.sub?`<br><span class="muted small" style="margin-left:22px">${esc(row.sub)}${(row.children||[]).length?' · '+row.children.length+' line'+(row.children.length===1?'':'s'):''}</span>`:''}</td>
       <td class="num nowrap">${money(row.current)}</td><td class="num nowrap" title="Invoiced within the selected financial-year window">${row.planned?'<span class="muted">—</span>':money(windowAct)}</td>
+      <td class="num nowrap" title="Total contract value − actuals to date">${row.planned?'<span class="muted">—</span>':money(row.current-row.actuals)}</td>
       ${cells}
       <td class="num nowrap">${money(fcTot)}</td>
-      <td class="num nowrap">${row.planned?'':(Math.abs(variance)<.005?'<span class="badge ok">0</span>':`<span class="badge ${variance>0?'warn':'bad'}" title="${variance>0?'Budget remaining (not yet committed by forecast or spend)':'Forecast + spend exceed the current budget'}">${money(variance)}</span>`)}</td>
+      <td class="num nowrap">${row.planned?'':(Math.abs(variance)<.005?'<span class="badge ok">0</span>':`<span class="badge ${variance>0?'warn':'bad'}" title="${variance>0?'Under forecast — budget still uncommitted once each quarter counts the greater of forecast or actual':'Over forecast — forecast + spend exceed the current budget'}">${money(variance)}</span>`)}</td>
       <td></td></tr>`
       +(open?(row.children||[]).map(childHTML).join('')
-        +`<tr class="fc-addrow"><td colspan="${ps.length+6}">
+        +`<tr class="fc-addrow"><td colspan="${ps.length+7}">
           ${row.planned
             ?`<button class="btn sm ghost" data-act="addPlannedLine">+ Planned item</button><span class="muted small">— things still in planning; give an estimated value and it phases like the rest</span>`
             :`<button class="btn sm ghost" data-act="addFcLine" data-parent="${row.ref}">+ Forecast line</button>
@@ -1664,16 +1716,17 @@ function renderForecast(){
     const dl=fcDelta(fc,act);
     return `<td class="num nowrap ${dl.cls}">${fmt(fc)}<br><span class="small muted">act ${fmt(act)}</span>${dl.chip?'<br>'+dl.chip:''}</td>`; }).join('');
   const tCur=rows.reduce((s,r)=>s+r.current,0);
+  const tAllAct=rows.reduce((s,r)=>s+r.actuals,0); // actuals to date (all-time)
   const tWinAct=rows.reduce((s,r)=>s+ps.reduce((x,p)=>x+actualsInPeriod(r.lineIds,p),0),0); // actuals within the window
   const tFc=rows.reduce((s,r)=>s+ps.reduce((x,p)=>x+fcRollup(r,p.key),0),0);
-  const tRemaining=rows.reduce((s,r)=>{ const wAct=ps.reduce((x,p)=>x+actualsInPeriod(r.lineIds,p),0);
+  const tOverUnder=rows.reduce((s,r)=>{ const wAct=ps.reduce((x,p)=>x+actualsInPeriod(r.lineIds,p),0);
     const eff=ps.reduce((x,p)=>x+Math.max(fcRollup(r,p.key),actualsInPeriod(r.lineIds,p)),0);
     return s+(r.current-r.actuals+wAct-eff); },0);
   $('#budget-body').innerHTML=`<div class="tblwrap"><table class="tbl">
-    <thead><tr><th>Item</th><th class="num">Current value</th><th class="num nowrap" title="Invoiced within the selected financial-year window">Actuals (period)</th>
-    ${ps.map(p=>`<th class="num nowrap">${p.label}${p.sub?`<br><span style="font-weight:400;text-transform:none;letter-spacing:0">${p.sub}</span>`:''}</th>`).join('')}<th class="num">Forecast Σ</th><th class="num nowrap" title="Budget remaining once the greater of forecast or actual is committed per quarter">Remaining</th><th></th></tr></thead>
-    <tbody>${body}<tr class="tot"><td>Total</td><td class="num nowrap">${money(tCur)}</td><td class="num nowrap">${money(tWinAct)}</td>${colTot}<td class="num nowrap">${money(tFc)}</td><td class="num nowrap">${money(tRemaining)}</td><td></td></tr></tbody></table></div>
-    <div class="small muted" style="margin-top:8px">Quarters follow the <b>July–June financial year</b> — Q1 FY27 = Jul–Sep 2026. ▶ expands a contract/PO to add <b>forecast lines</b>; you phase on the lines (type a value like <b>5,000</b> or a % of remaining like <b>25%</b>), and the contract row above is the read-only sum of its lines. Several lines can phase the same PO line. Archive a line with 🗄 and use “show archived” to bring them back. Paste tab-separated values from Excel to fill several periods at once. “act” shows invoiced actuals in that period. Each quarter counts the <b>greater of forecast or actual</b> toward the budget, so invoicing a quarter you forecast doesn’t double-count; where an actual differs from the forecast a <span class="fcd over">Δ</span> flags it (red = over forecast, green = under). <b>Actuals (period)</b> counts only what’s invoiced inside the chosen financial-year window, and <b>Remaining</b> is the budget still uncommitted once each quarter’s greater-of forecast/actual is taken — set the window to a year and check Remaining to see whether there’s enough budget.</div>`;
+    <thead><tr><th>Item</th><th class="num nowrap">Total contract value</th><th class="num nowrap" title="Invoiced within the selected financial-year window">Actuals (period)</th><th class="num nowrap" title="Total contract value − actuals to date">Total remaining</th>
+    ${ps.map(p=>`<th class="num nowrap">${p.label}${p.sub?`<br><span style="font-weight:400;text-transform:none;letter-spacing:0">${p.sub}</span>`:''}</th>`).join('')}<th class="num">Forecast Σ</th><th class="num nowrap" title="Budget still uncommitted once each quarter counts the greater of forecast or actual — negative means forecast + spend exceed the budget">Over / Under forecast</th><th></th></tr></thead>
+    <tbody>${body}<tr class="tot"><td>Total</td><td class="num nowrap">${money(tCur)}</td><td class="num nowrap">${money(tWinAct)}</td><td class="num nowrap">${money(tCur-tAllAct)}</td>${colTot}<td class="num nowrap">${money(tFc)}</td><td class="num nowrap">${money(tOverUnder)}</td><td></td></tr></tbody></table></div>
+    <div class="small muted" style="margin-top:8px">Quarters follow the <b>July–June financial year</b> — Q1 FY27 = Jul–Sep 2026. ▶ expands a contract/PO to add <b>forecast lines</b>; you phase on the lines (type a value like <b>5,000</b> or a % of remaining like <b>25%</b>), and the contract row above is the read-only sum of its lines. Several lines can phase the same PO line. Archive a line with 🗄 and use “show archived” to bring them back. Paste tab-separated values from Excel to fill several periods at once. “act” shows invoiced actuals in that period. Each quarter counts the <b>greater of forecast or actual</b> toward the budget, so invoicing a quarter you forecast doesn’t double-count; where an actual differs from the forecast a <span class="fcd over">Δ</span> flags it (red = over forecast, green = under). <b>Actuals (period)</b> counts only what’s invoiced inside the chosen financial-year window; <b>Total remaining</b> is total contract value − actuals to date; and <b>Over / Under forecast</b> is the budget still uncommitted once each quarter counts the greater of forecast or actual (negative = forecast + spend exceed the budget). Set the window to a year to see whether there’s enough budget.</div>`;
 }
 function handleForecastCell(el){ const [ref,key]=el.dataset.fc.split('|'); const raw=el.value.trim();
   if(!raw){ delete S.forecast[ref+'|'+key]; }
@@ -1682,7 +1735,7 @@ function handleForecastCell(el){ const [ref,key]=el.dataset.fc.split('|'); const
   save(); renderKeepFocus();
 }
 ACTIONS.fcToggle=t=>{ const ref=t.dataset.ref; S.ui.fcOpen[ref]=!S.ui.fcOpen[ref]; save(); render(); };
-ACTIONS.fcClearF=()=>{ S.ui.fcF={supplier:'',wbs:'',contract:''}; save(); render(); };
+ACTIONS.fcClearF=()=>{ S.ui.fcF={supplier:[],wbs:[],contract:[]}; save(); render(); };
 ACTIONS.addFcLine=t=>{ const parentRef=t.dataset.parent;
   S.fcLines.push({id:uid(),parentRef,poId:'',poLineId:'',forWhat:'',supplier:'',statusId:'committed',startDate:'',endDate:'',archived:false});
   S.ui.fcOpen[parentRef]=true; save(); render(); };
@@ -1972,11 +2025,11 @@ function renderTasks(v){
     <button class="btn sm ${week?'accent':''}" data-act="tglWeek" title="Show this week's priorities">★ This week</button>
     <div class="sp" style="flex:1"></div>
     <span class="small muted">${countOpenTasks()} open</span>
-    <label class="small nowrap" style="margin-left:10px"><input type="checkbox" ${hide?'checked':''} data-act="none" id="hideDone"> hide completed</label>
+    <label class="small nowrap" style="margin-left:10px"><input type="checkbox" ${hide?'':'checked'} data-act="none" id="showDone"> show completed</label>
   </div>
   ${week?renderWeekView():`<div class="card"><div class="card-b task-tree" id="ttree">${S.tasks.length?taskListHTML(S.tasks,hide,0):'<div class="empty">No tasks yet. Add one — Enter for the next, Tab to nest. Use + Header to group by programme or workstream.</div>'}</div></div>`}
   <div class="small muted" style="margin-top:8px">Enter = new task below · Tab / Shift-Tab = nest / un-nest · click the state pill to cycle, the flag to set priority · tasks appear on the calendar by due date and completion date.</div>`;
-  $('#hideDone').onchange=e=>{ S.ui.hideDone=e.target.checked; save(); render(); };
+  $('#showDone').onchange=e=>{ S.ui.hideDone=!e.target.checked; save(); render(); };
 }
 function collectTasks(){ const out=[]; walkTasks(t=>{ if(t.type!=='header') out.push(t); }); return out; }
 function countOpenTasks(){ let n=0; collectTasks().forEach(t=>{ if(!stateOf(t.stateId).done) n++; }); return n; }
@@ -2589,18 +2642,28 @@ function runCSVImport(text){
   return res;
 }
 ACTIONS.importCSV=()=>{
-  modal(`<div class="m-h"><h3>Data round-trip (spreadsheet)</h3></div><div class="m-b">
-    <div class="small" style="margin-bottom:10px"><b>Download → edit in Excel → re-upload.</b> The file below contains your current contracts, POs, lines and invoices in an editable grid. Open it in Excel, change/add rows, save as CSV, then upload it here — matching numbers are updated and new rows are created.</div>
-    <button class="btn primary sm" data-act="downloadTemplate">⬇ Download current data (CSV, opens in Excel)</button>
-    <div class="small muted" style="margin:10px 0 4px">One row per item, ordered <b>contract → po → line → invoice</b>; a <code>po</code> row with a blank <code>contract_number</code> is a standalone PO. Keep the header row.</div>
-    <hr style="border:0;border-top:1px solid var(--line-2);margin:14px 0">
-    <div class="small muted" style="margin:0 0 4px">Upload an edited file…</div>
+  modal(`<div class="m-h"><h3>Data — export &amp; import</h3></div><div class="m-b">
+    <div class="small muted" style="margin-bottom:6px"><b>Bulk download</b> a full copy of this programme:</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <button class="btn" data-act="exportExcel">📊 Excel workbook</button>
+      <button class="btn" data-act="exportMD">📝 Markdown snapshot</button>
+      <button class="btn" data-act="downloadJSON">💾 JSON (all data)</button>
+      <button class="btn" data-act="downloadTemplate">📥 Financial CSV</button>
+    </div>
+    <hr style="border:0;border-top:1px solid var(--line-2);margin:6px 0 12px">
+    <div class="small" style="margin-bottom:8px"><b>Bulk upload.</b> A full <b>programme file (JSON)</b> updates <b>all</b> information in the app — budget, forecast, calendar, actions and notes. A <b>financial CSV</b> updates just contracts / POs / lines / invoices (matching numbers are updated, new rows created).</div>
+    <label class="f"><span>Full programme (JSON) — updates everything</span><input type="file" id="jsonup" accept=".json,application/json"></label>
+    <div style="margin:12px 0 4px" class="small muted">Financial data (CSV) — upload a file…</div>
     <input type="file" id="csvfile" accept=".csv,text/csv">
-    <div style="margin:12px 0 4px" class="small muted">…or paste CSV here</div>
-    <textarea id="csvtext" rows="6" style="width:100%;font-family:var(--mono);font-size:12px" placeholder="type,supplier,supplier_number,contract_number,…"></textarea>
-  </div><div class="m-f"><button class="btn" data-act="closeModal">Cancel</button>
-  <button class="btn primary" data-act="runImport">Upload &amp; apply</button></div>`);
+    <div style="margin:10px 0 4px" class="small muted">…or paste CSV here</div>
+    <textarea id="csvtext" rows="5" style="width:100%;font-family:var(--mono);font-size:12px" placeholder="type,supplier,supplier_number,contract_number,…"></textarea>
+  </div><div class="m-f"><button class="btn" data-act="closeModal">Close</button>
+  <button class="btn primary" data-act="runImport">Upload &amp; apply CSV</button></div>`);
+  const j=$('#jsonup'); if(j) j.onchange=async e=>{ const f=e.target.files[0]; if(!f) return;
+    if(!confirm('Replace ALL data in “'+S.programme.name+'” with the contents of this file?')){ e.target.value=''; return; }
+    try{ if(replaceStateInPlace(JSON.parse(await f.text()))){ closeModal(); toast('All data updated from file'); } }catch(err){ toast('Could not read that JSON file'); } };
 };
+ACTIONS.downloadJSON=()=>{ download(slug(S.programme.name)+'.programme.json',JSON.stringify(S,null,1),'application/json'); toast('JSON downloaded'); };
 ACTIONS.downloadTemplate=()=>{ download(slug(S.programme.name)+'-data-'+todayStr()+'.csv',buildDataCSV(),'text/csv'); toast('Data downloaded — edit in Excel, then re-upload here'); };
 ACTIONS.runImport=async()=>{
   let text=($('#csvtext').value||'').trim();
@@ -2734,24 +2797,52 @@ ACTIONS.exportMD=()=>{
   toast('Markdown snapshot exported — drop it straight into an AI chat');
 };
 
-/* --- JSON save / open --- */
-let fileHandle=null;
+/* --- JSON save / open — each programme remembers its own file, keyed by its storage key ---
+   File handles are kept in IndexedDB so opening / switching programmes writes to the right file
+   (previously a single shared handle meant saving programme B overwrote programme A's file). */
+const HDB={db:null};
+function idbOpen(){ return new Promise((res,rej)=>{ if(HDB.db) return res(HDB.db);
+  const r=indexedDB.open('progapp-handles',1); r.onupgradeneeded=()=>r.result.createObjectStore('handles');
+  r.onsuccess=()=>{ HDB.db=r.result; res(r.result); }; r.onerror=()=>rej(r.error); }); }
+async function idbGet(key){ try{ const db=await idbOpen(); return await new Promise((res,rej)=>{ const t=db.transaction('handles').objectStore('handles').get(key); t.onsuccess=()=>res(t.result); t.onerror=()=>rej(t.error); }); }catch(e){ return null; } }
+async function idbSet(key,val){ try{ const db=await idbOpen(); await new Promise((res,rej)=>{ const t=db.transaction('handles','readwrite'); t.objectStore('handles').put(val,key); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }catch(e){} }
+async function idbDel(key){ try{ const db=await idbOpen(); await new Promise((res)=>{ const t=db.transaction('handles','readwrite'); t.objectStore('handles').delete(key); t.oncomplete=()=>res(); t.onerror=()=>res(); }); }catch(e){} }
+async function fileHandleFor(key){ const h=await idbGet(key); if(!h) return null;
+  try{ if(h.queryPermission){ let p=await h.queryPermission({mode:'readwrite'});
+    if(p!=='granted'&&h.requestPermission) p=await h.requestPermission({mode:'readwrite'});
+    if(p!=='granted') return null; } }catch(e){}
+  return h; }
+async function refreshFileLabel(){ const el=$('#fileLabel'); if(!el) return;
+  if(OVERVIEW||!window.showSaveFilePicker){ el.style.display='none'; return; } el.style.display='';
+  const h=await idbGet(lsKey);
+  if(h){ el.textContent='📄 '+h.name; el.title='This programme saves to “'+h.name+'” — click to save or point it at a different file'; }
+  else { el.textContent='📄 link file…'; el.title='Not linked to a file yet — click to choose where this programme saves'; } }
 ACTIONS.saveJSON=async()=>{
   const content=JSON.stringify(S,null,1);
   const name=slug(S.programme.name)+'.programme.json';
   if(window.showSaveFilePicker){
     try{
-      if(!fileHandle) fileHandle=await showSaveFilePicker({suggestedName:name,types:[{description:'Programme file',accept:{'application/json':['.json']}}]});
-      const w=await fileHandle.createWritable(); await w.write(content); await w.close();
-      toast('Saved to '+fileHandle.name); save(); return;
-    }catch(e){ if(e&&e.name==='AbortError') return; fileHandle=null; }
+      let h=await fileHandleFor(lsKey);
+      if(!h){ h=await showSaveFilePicker({suggestedName:name,types:[{description:'Programme file',accept:{'application/json':['.json']}}]}); await idbSet(lsKey,h); }
+      const w=await h.createWritable(); await w.write(content); await w.close();
+      refreshFileLabel(); toast('Saved to '+h.name); save(); return;
+    }catch(e){ if(e&&e.name==='AbortError') return; }
   }
   download(name,content,'application/json'); toast('Programme file downloaded');
 };
+ACTIONS.fileInfo=async()=>{ if(!window.showSaveFilePicker) return ACTIONS.saveJSON();
+  const h=await idbGet(lsKey);
+  modal(`<div class="m-h"><h3>Programme file</h3></div><div class="m-b">
+    <div class="small">${h?`<b>${esc(S.programme.name)}</b> saves to <b>${esc(h.name)}</b>. Browsers can’t open your file explorer for you, but you can re-save it now, or point this programme at a different file to be sure it lands in the right place.`:`<b>${esc(S.programme.name)}</b> isn’t linked to a file yet. Choose where it should save — each programme keeps its own file, so saving one never overwrites another.`}</div>
+  </div><div class="m-f"><button class="btn" data-act="closeModal">Close</button>
+    ${h?'<button class="btn" data-act="relinkFile">Save to a different file…</button>':''}
+    <button class="btn primary" data-act="saveFromInfo">${h?'Save now':'Choose file &amp; save'}</button></div>`); };
+ACTIONS.saveFromInfo=()=>{ closeModal(); ACTIONS.saveJSON(); };
+ACTIONS.relinkFile=async()=>{ await idbDel(lsKey); closeModal(); ACTIONS.saveJSON(); };
 ACTIONS.openJSON=async()=>{
   if(window.showOpenFilePicker){
     try{ const [h]=await showOpenFilePicker({types:[{description:'Programme file',accept:{'application/json':['.json']}}]});
-      const f=await h.getFile(); importState(JSON.parse(await f.text())); fileHandle=h; return;
+      const f=await h.getFile(); importState(JSON.parse(await f.text())); await idbSet(lsKey,h); refreshFileLabel(); return;
     }catch(e){ if(e&&e.name==='AbortError') return; }
   }
   $('#filein').click();
