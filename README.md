@@ -11,11 +11,13 @@ A single-file, locally hosted budgeting and programme management app — a "Noti
       iv. Switch or combine programmes from the dropdown beside the programme name: pick another programme to jump to it, pick "All programmes (overview)" for a read-only, unified roll-up, or pick "＋ New programme…" to create a fresh one.
          1. The overview gives one budget across every programme (per-programme subtotals plus a grand total), one calendar showing every programme's events and due/completed actions, and one action list grouped under each programme's name.
          2. Switch back to any single programme to edit it.
-   c. Each programme keeps its own file. 💾 Save writes this programme to its own `.programme.json`; 📂 Open loads a programme file.
-      i. Each programme remembers where it saves, so saving one never overwrites another, and switching programmes switches the save location with it. The 📄 label beside the programme name shows which file the current programme saves to (click it to save, or to point the programme at a different file).
-      ii. The `.json` file is plain structured text — drop it (or the 📝 Markdown snapshot) straight into an AI model for analysis and interrogation. Ctrl/Cmd-S also saves.
+   c. How saving works — two copies are always kept, like a desktop app.
+      i. This browser: everything autosaves to the browser automatically as you type (the "Saved" time, top-right). It stays on this computer, in this browser only — clearing site data or using another browser/computer won't have it.
+      ii. A file on your computer: a portable `.programme.json` you write with 💾 Save (Ctrl/Cmd-S). Back it up, move it, email it, or drop it (or the 📝 Markdown snapshot) into an AI model.
+      iii. Like Office: 💾 Save writes to the same file each time (the first save asks where); 💾 Save As… lets you choose a new name or folder — to move a programme's file, Save As to the new location (your computer keeps the old file, which you can delete). Each programme keeps its own file, so saving one never overwrites another, and switching programmes switches the save location with it.
+      iv. The 📄 label beside the programme name shows which file the current programme saves to (or "Not saved to a file"); click it for the save panel. 📂 Open loads a programme file from your computer.
    d. 📥 Data is the export/import hub.
-      i. Bulk download a full copy: 📊 Excel workbook, 📝 Markdown snapshot, 💾 JSON (all data) or the financial CSV.
+      i. Bulk download a full copy: 📊 Excel workbook (every page), 📝 Markdown snapshot, 💾 JSON (all data) or the financial CSV. A second row of buttons exports a single page to Excel on its own — Overview, Forecast, Actions, Calendar, Notes or Links.
       ii. Bulk upload: a full programme file (JSON) updates all information in the app — budget, forecast, calendar, actions and notes — in place; a financial CSV updates just contracts/POs/lines/invoices.
       iii. Financial CSV: one row per item, ordered contract → po → line → invoice, matched on contract/PO/line/invoice numbers — re-uploading updates existing items instead of duplicating them. `import-template.csv` is a worked example.
       iv. A `po` row with a blank `contract_number` becomes a standalone PO; put its supplier in the `supplier` column. Contracts also carry a `what` (contract name) column. If a file has no recognised `type` column, the importer says so clearly instead of silently doing nothing.
@@ -39,7 +41,7 @@ A single-file, locally hosted budgeting and programme management app — a "Noti
       v. Archiving — contracts, POs, PO lines and budget lines all have an archive button (🗄) alongside delete; archived items are hidden from default views and dropdowns but keep their history and can be shown or restored (↩) at any time.
    b. Calendar
       i. Month view by default; switch to week or day.
-      ii. Tags (Milestone, Meeting, Hui, Activation/Activity, Deadline — customisable in ⚙ Settings) colour and filter events; each event also has an Organiser field, and event notes are the place for hui notes.
+      ii. Tags (Milestone, Meeting, Hui, Activation/Activity, Deadline — customisable in ⚙ Settings) colour and filter events; each event also has an Organiser field (with an Excel-style multi-select Organiser filter in the toolbar), and event notes are the place for hui notes.
       iii. Tasks with due dates appear automatically on the calendar as an empty box (☐, i.e. not yet done), and completed actions show on their completion date as a bare tick (✓). The ☐ Tasks and ✓ Done chips in the toolbar filter task and completed-action pills in or out.
    c. Actions
       i. Endlessly nestable task list — Enter adds the next task, Tab/Shift-Tab nests/un-nests; all top-level items sit tight against the left edge and children indent under a guide.

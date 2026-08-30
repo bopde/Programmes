@@ -128,6 +128,8 @@ tr.fc-planned>td{background:#f4f1fa}
 .pill{display:inline-flex;align-items:center;gap:5px;border-radius:99px;padding:2px 10px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid transparent;white-space:nowrap}
 .pillsel{border-radius:99px;padding:2px 6px 2px 10px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid transparent;white-space:nowrap;-webkit-appearance:none;appearance:none;font-family:inherit}
 #progSwitch{margin-left:8px;font:inherit;font-size:12px;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:7px;padding:2px 4px;max-width:210px;cursor:pointer}
+#fileLabel{white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+#fileLabel.warnlabel{color:var(--warn);border-color:var(--warn)}
 .msf{position:relative;display:inline-block}
 .msf-pop{position:absolute;top:calc(100% + 3px);left:0;z-index:60;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);padding:6px;min-width:190px}
 .msf-list{max-height:220px;overflow:auto;margin-top:2px}
@@ -319,8 +321,9 @@ input[type=color]{padding:0;width:34px;height:28px;border-radius:6px;cursor:poin
   </nav>
   <div class="hd-actions">
     <span class="stamp" id="stamp"></span>
-    <button class="btn sm" data-act="saveJSON" title="Save this programme to its own file">💾 Save</button>
-    <button class="btn sm" data-act="openJSON" title="Open a programme file">📂 Open</button>
+    <button class="btn sm" data-act="saveJSON" title="Save this programme to its file (Ctrl/Cmd-S) — first save asks where">💾 Save</button>
+    <button class="btn sm" data-act="relinkFile" title="Save As — choose a new name or folder (use this to move the file)">💾 Save As…</button>
+    <button class="btn sm" data-act="openJSON" title="Open a programme file from your computer">📂 Open</button>
     <button class="btn sm" data-act="importCSV" title="Export (Excel / Markdown / JSON) and bulk import">📥 Data</button>
     <button class="btn sm ghost" data-act="trash" title="Recently deleted — restore items">🗑<span id="trashCount"></span></button>
     <button class="btn sm ghost" data-act="settings" title="Settings">⚙</button>
@@ -358,7 +361,7 @@ const dstr=d=>d?new Date(d+'T00:00').toLocaleDateString('en-NZ',{day:'numeric',m
 let S=null, lsKey=null, TAB='budget';
 
 function defaultState(name){return {
-  v:8,
+  v:9,
   programme:{name:name||'New Programme',currency:'$',created:todayStr(),modified:''},
   settings:{
     taskStates:[
@@ -410,7 +413,7 @@ function defaultState(name){return {
   ui:{budgetTab:'lines',calMode:'month',calDate:todayStr(),view:'full',hideDone:false,
       budgetArch:'hide',structView:'active',structFilter:'',structF:{supplier:[],wbs:[],contract:[]},
       fcFilter:'',fcF:{supplier:[],wbs:[],contract:[]},fcView:'',fcOpen:{},
-      ovF:{supplier:[],wbs:[],contract:[]},ovWindow:false,calShowTasks:true,calShowDone:true,
+      ovF:{supplier:[],wbs:[],contract:[]},ovWindow:false,calShowTasks:true,calShowDone:true,calF:{organiser:[]},
       structCollapsed:{},poCollapsed:{},notePage:'',taskGroup:'',taskWeekOnly:false,fcArch:'active'},
 };}
 function fyStartKey(){ const d=new Date(); const y=d.getMonth()+1>=7?d.getFullYear():d.getFullYear()-1; return y+'-07'; }
@@ -541,6 +544,10 @@ function migrate(d){ const def=defaultState('x');
       ['supplier','wbs','contract'].forEach(f=>{ if(typeof o[f]==='string') o[f]=o[f]?[o[f]]:[]; if(!Array.isArray(o[f])) o[f]=[]; }); });
     d.v=8;
   }
+  if(d.v<9){ // v8 → v9: calendar organiser filter
+    if(!d.ui.calF||!Array.isArray(d.ui.calF.organiser)) d.ui.calF={organiser:[]};
+    d.v=9;
+  }
   (d.fcLines||[]).forEach(f=>{ if(f.archived===undefined) f.archived=false; if(f.supplier===undefined) f.supplier=''; });
   if(!d.notes||!d.notes.length) d.notes=[{id:uid(),name:'Notes',icon:'📝',blocks:[{id:uid(),type:'h1',html:'Notes'},{id:uid(),type:'p',html:''}]}];
   (d.contracts||[]).forEach(c=>{ if(!c.variations) c.variations=[]; });
@@ -551,6 +558,7 @@ function migrate(d){ const def=defaultState('x');
   if(!d.ui.structF) d.ui.structF={supplier:[],wbs:[],contract:[]};
   if(!d.ui.fcF) d.ui.fcF={supplier:[],wbs:[],contract:[]};
   if(!d.ui.ovF) d.ui.ovF={supplier:[],wbs:[],contract:[]};
+  if(!d.ui.calF) d.ui.calF={organiser:[]};
   if(d.fcCfg) d.fcCfg.gran='quarter';
   if(!d.links) d.links=[];
   if(!d.trash) d.trash=[];
@@ -1261,7 +1269,7 @@ function msFilter(scope,field,label,options,selected){
       <div class="msf-list">${options.map(o=>`<label class="msf-opt"><input type="checkbox" value="${esc(o)}" ${selected.includes(o)?'checked':''} onchange="msfChange(this)"> ${o!==''?esc(o):'<span class="muted">(blank)</span>'}</label>`).join('')||'<div class="muted small" style="padding:4px 6px">No options</div>'}</div>
     </div></span>`;
 }
-function msfState(scope){ return scope==='ov'?S.ui.ovF:scope==='fc'?S.ui.fcF:S.ui.structF; }
+function msfState(scope){ return scope==='ov'?S.ui.ovF:scope==='fc'?S.ui.fcF:scope==='cal'?S.ui.calF:S.ui.structF; }
 let msfOpen=null; // 'scope:field' of the popover to keep open across the live-filter re-render
 window.msfChange=el=>{ const wrap=el.closest('.msf'); const pop=wrap.querySelector('.msf-pop'); const [scope,field]=wrap.dataset.msf.split(':');
   const allBox=pop.querySelector('[data-msfall]'); const boxes=[...pop.querySelectorAll('.msf-list input')];
@@ -1863,8 +1871,11 @@ ACTIONS.delFcView=t=>{ S.fcViews=S.fcViews.filter(v=>v.id!==t.dataset.id); S.ui.
 /* ================= CALENDAR ================= */
 function calDate(){ return new Date((S.ui.calDate||todayStr())+'T00:00'); }
 function iso(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-function eventsOn(ds){ return S.events.filter(e=>{ if(e.endDate) return ds>=e.date&&ds<=e.endDate; return e.date===ds; })
-  .filter(e=>!S.ui.tagFilter||!S.ui.tagFilter.length||(e.tagIds||[]).some(t=>S.ui.tagFilter.includes(t))||!(e.tagIds||[]).length); }
+function eventsOn(ds){ const org=(S.ui.calF&&S.ui.calF.organiser)||[];
+  return S.events.filter(e=>{ if(e.endDate) return ds>=e.date&&ds<=e.endDate; return e.date===ds; })
+  .filter(e=>!S.ui.tagFilter||!S.ui.tagFilter.length||(e.tagIds||[]).some(t=>S.ui.tagFilter.includes(t))||!(e.tagIds||[]).length)
+  .filter(e=>!org.length||org.includes(e.organiser||'')); }
+const organiserOptions=()=>uniq(S.events.map(e=>e.organiser));
 function tasksDue(ds){ const out=[]; walkTasks(t=>{ if(t.due===ds&&!stateOf(t.stateId).done) out.push(t); }); return out; }
 function tasksCompleted(ds){ const out=[]; walkTasks(t=>{ if(t.completed===ds&&stateOf(t.stateId).done) out.push(t); }); return out; }
 function taskDonePill(t){ return `<div class="ev task done" data-goto="task:${t.id}" title="Completed: ${esc(t.name)}"><span>✓</span><span class="t">${esc(t.name)}</span></div>`; }
@@ -1883,6 +1894,7 @@ function renderCalendar(v){
     <h2 style="margin:0 8px;font-size:20px">${esc(title)}</h2>
     <div class="sp"></div>
     ${tagChips}
+    ${organiserOptions().length?msFilter('cal','organiser','Organiser',organiserOptions(),S.ui.calF.organiser):''}
     <span class="pill" data-act="calToggleTasks" title="Show / hide tasks due" style="background:${S.ui.calShowTasks?'var(--ink-2)':'transparent'};color:${S.ui.calShowTasks?'#fff':'var(--ink-2)'};border-color:var(--ink-2)">☐ Tasks</span>
     <span class="pill" data-act="calToggleDone" title="Show / hide completed actions" style="background:${S.ui.calShowDone?'var(--good)':'transparent'};color:${S.ui.calShowDone?'#fff':'var(--good)'};border-color:var(--good)">✓ Done</span>
     <div class="subtabs" style="margin-left:8px">
@@ -2644,11 +2656,15 @@ function runCSVImport(text){
 ACTIONS.importCSV=()=>{
   modal(`<div class="m-h"><h3>Data — export &amp; import</h3></div><div class="m-b">
     <div class="small muted" style="margin-bottom:6px"><b>Bulk download</b> a full copy of this programme:</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
-      <button class="btn" data-act="exportExcel">📊 Excel workbook</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <button class="btn" data-act="exportExcel">📊 Excel workbook (everything)</button>
       <button class="btn" data-act="exportMD">📝 Markdown snapshot</button>
       <button class="btn" data-act="downloadJSON">💾 JSON (all data)</button>
       <button class="btn" data-act="downloadTemplate">📥 Financial CSV</button>
+    </div>
+    <div class="small muted" style="margin-bottom:4px">Excel — a single page:</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+      ${['Overview','Forecast','Actions','Calendar','Notes','Links'].map(p=>`<button class="btn sm" data-act="exportPageXls" data-page="${p}">${esc(p)}</button>`).join('')}
     </div>
     <hr style="border:0;border-top:1px solid var(--line-2);margin:6px 0 12px">
     <div class="small" style="margin-bottom:8px"><b>Bulk upload.</b> A full <b>programme file (JSON)</b> updates <b>all</b> information in the app — budget, forecast, calendar, actions and notes. A <b>financial CSV</b> updates just contracts / POs / lines / invoices (matching numbers are updated, new rows created).</div>
@@ -2698,47 +2714,48 @@ function xCell(v,head){ const st=head?' ss:StyleID="h"':'';
 function xSheet(name,rows){ // rows[0] is the header row
   const body=rows.map((r,i)=>`<Row>${r.map(c=>xCell(c,i===0)).join('')}</Row>`).join('\n');
   return `<Worksheet ss:Name="${escXml(name.slice(0,31))}"><Table>${body}</Table></Worksheet>`; }
-ACTIONS.exportExcel=()=>{
-  const ps=periodList();
-  const sheets=[
-    xSheet('Overview',[['Type','For what','Supplier','Contract #','PO #','PO lines','Original budget','Variations','Current value','Contract end','Actuals','Remaining','Notes','Archived'],
-      ...overviewRows().map(r=>[r.kind,r.what,r.supplier,r.contractNo,r.poNo,r.lineCount===''?'':r.lineCount,r.orig,r.vars,r.current,r.endDate,r.actuals,r.remaining,r.notes,r.archived?'yes':''])]),
-    xSheet('Contracts',[['Supplier','Supplier #','Contract #','Original value','Variations','Current value','Start','End','Sum of PO lines','Unallocated','Notes','Archived'],
-      ...S.contracts.map(c=>[c.supplier,c.supplierNumber,c.contractNumber,parseNum(c.totalValue),contractVarsSum(c),contractCurrent(c),c.startDate||'',c.endDate||'',contractLinesSum(c.id),contractCurrent(c)-contractLinesSum(c.id),c.notes||'',c.archived?'yes':''])]),
-    xSheet('Variations',[['Supplier','Contract #','Description','Date','Value'],
-      ...S.contracts.flatMap(c=>(c.variations||[]).map(v=>[c.supplier,c.contractNumber||'',v.label||'',v.date||'',parseNum(v.value)]))]),
-    xSheet('POs',[['PO number','Contract #','Supplier','Standalone','Description','Sum of lines','Archived'],
-      ...S.pos.map(p=>{const c=contractOf(p.contractId)||{};return [p.poNumber,c.contractNumber||'',c.supplier||p.supplier||'',p.contractId?'':'yes',p.description||'',poLinesSum(p.id),p.archived?'yes':''];})]),
-    xSheet('PO Lines',[['PO number','Line','Description','WBS element','Spend code','GL code','Value','Invoiced','Remaining','Archived'],
-      ...S.poLines.map(l=>{const p=poOf(l.poId)||{};return [p.poNumber||'',l.lineNo,l.description||'',l.wbs||'',l.spendCode||'',l.glCode||'',parseNum(l.value),lineInvoiced(l.id),parseNum(l.value)-lineInvoiced(l.id),l.archived?'yes':''];})]),
-    xSheet('Invoices',[['Invoice #','PO number','PO line','Value','Date','For','Notes'],
-      ...S.invoices.map(i=>{const l=lineOf(i.poLineId)||{};const p=poOf(l.poId)||{};return [i.invoiceNumber,p.poNumber||'',l.lineNo||'',parseNum(i.value),i.date||'',i.forWhat||'',i.notes||''];})]),
-    xSheet('Forecast',[['Item','Level','For what','Supplier','Reference','Status','Start','End','Current value','Actuals to date',...ps.map(p=>p.label+' forecast'),...ps.map(p=>p.label+' actual')],
-      ...fcTopRows().flatMap(row=>[
-        [row.label,row.sub||'','',fcSupplier(row.ref),'','','','',row.current,row.actuals,...ps.map(p=>fcRollup(row,p.key)),...ps.map(p=>actualsInPeriod(row.lineIds,p))],
-        ...(row.children||[]).map(ch=>['    '+(ch.f.forWhat||'(forecast line)'),'Forecast line',ch.f.forWhat||'',fcSupplier(ch.f.parentRef),ch.sub,fcStatusName(ch.f.statusId),ch.f.startDate||'',ch.f.endDate||'',ch.current,ch.actuals,...ps.map(p=>fcOwn(ch.ref,ch.current,ch.actuals,p.key)),...ps.map(p=>actualsInPeriod(ch.lineIds,p))])])]),
-    xSheet('Actions',(()=>{const rows=[['Task','Level','Type','State','Priority','Owner','Tags','Due','Completed','Last actioned','Links','Notes']];
-      walkTasks((t,depth)=>rows.push(['  '.repeat(depth)+(t.name||''),depth,t.type||'task',t.type==='header'?'':stateOf(t.stateId).name,priorityName(t.priorityId),t.owner||'',(t.tagIds||[]).map(id=>(taskTagOf(id)||{}).name).filter(Boolean).join(', '),t.due||'',t.completed||'',t.lastActioned||'',(t.links||[]).map(l=>refLabel(...l.split(':'))).join('; '),t.notes||''])); return rows;})()),
-    xSheet('Calendar',[['Date','End date','Time','Title','Tags','Organiser','Notes','Links'],
-      ...[...S.events].sort((a,b)=>a.date.localeCompare(b.date)).map(e=>[e.date,e.endDate||'',e.time||'',e.title,(e.tagIds||[]).map(id=>(tagOf(id)||{}).name).filter(Boolean).join(', '),e.organiser||'',e.notes||'',(e.links||[]).map(l=>refLabel(...l.split(':'))).join('; ')])]),
-    xSheet('Links',[['Title','URL','Category','Notes'],...S.links.map(l=>[l.title||'',l.url||'',l.category||'',l.notes||''])]),
-    xSheet('Notes',(()=>{const rows=[['Page','Type','Content']];
-      S.notes.forEach(pg=>{ if(pg.kind==='links') return;
-        const emit=(b,depth)=>{ if(b.type==='table'){ (b.rows||[]).forEach(r=>rows.push([pg.name,'table',r.map(htmlToText).join(' | ')])); }
-          else if(b.type==='grid'){ rows.push([pg.name,'grid',(b.columns||[]).map(c=>c.label).join(' | ')]); (b.rows||[]).forEach(gr=>rows.push([pg.name,'grid',(b.columns||[]).map(c=>gr[c.key]||'').join(' | ')])); }
-          else if(b.type!=='divider') rows.push([pg.name,b.type,'  '.repeat(depth)+htmlToText(b.html)]);
-          (b.children||[]).forEach(c=>emit(c,depth+1)); };
-        (pg.blocks||[]).forEach(b=>emit(b,0)); }); return rows;})()),
-  ].join('\n');
-  const xml=`<?xml version="1.0"?>
+ACTIONS.exportExcel=()=>{ exportXls(Object.keys(xlSheetBuilders())); toast('Excel workbook exported'); };
+ACTIONS.exportPageXls=t=>{ const p=t.dataset.page; exportXls([p],slug(p)); toast(p+' exported to Excel'); };
+function xlWorkbook(sheetXml){ return `<?xml version="1.0"?>
 <?mso-application progid="Excel.Sheet"?>
 <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
 <Styles><Style ss:ID="h"><Font ss:Bold="1"/><Interior ss:Color="#EFECE4" ss:Pattern="Solid"/></Style></Styles>
-${sheets}
-</Workbook>`;
-  download(slug(S.programme.name)+'-'+todayStr()+'.xls',xml,'application/vnd.ms-excel');
-  toast('Excel workbook exported');
-};
+${sheetXml.join('\n')}
+</Workbook>`; }
+function exportXls(names,suffix){ const B=xlSheetBuilders();
+  const xml=xlWorkbook(names.filter(n=>B[n]).map(n=>xSheet(n,B[n]())));
+  download(slug(S.programme.name)+(suffix?'-'+suffix:'')+'-'+todayStr()+'.xls',xml,'application/vnd.ms-excel'); }
+/* one builder per sheet → [header row, ...data rows]; reused for the whole workbook or a single page */
+function xlSheetBuilders(){ const ps=periodList(); return {
+  Overview:()=>[['Type','For what','Supplier','Contract #','PO #','PO lines','Original budget','Variations','Current value','Contract end','Actuals','Remaining','Notes','Archived'],
+    ...overviewRows().map(r=>[r.kind,r.what,r.supplier,r.contractNo,r.poNo,r.lineCount===''?'':r.lineCount,r.orig,r.vars,r.current,r.endDate,r.actuals,r.remaining,r.notes,r.archived?'yes':''])],
+  Contracts:()=>[['Supplier','Supplier #','Contract #','Original value','Variations','Current value','Start','End','Sum of PO lines','Unallocated','Notes','Archived'],
+    ...S.contracts.map(c=>[c.supplier,c.supplierNumber,c.contractNumber,parseNum(c.totalValue),contractVarsSum(c),contractCurrent(c),c.startDate||'',c.endDate||'',contractLinesSum(c.id),contractCurrent(c)-contractLinesSum(c.id),c.notes||'',c.archived?'yes':''])],
+  Variations:()=>[['Supplier','Contract #','Description','Date','Value'],
+    ...S.contracts.flatMap(c=>(c.variations||[]).map(v=>[c.supplier,c.contractNumber||'',v.label||'',v.date||'',parseNum(v.value)]))],
+  POs:()=>[['PO number','Contract #','Supplier','Standalone','Description','Sum of lines','Archived'],
+    ...S.pos.map(p=>{const c=contractOf(p.contractId)||{};return [p.poNumber,c.contractNumber||'',c.supplier||p.supplier||'',p.contractId?'':'yes',p.description||'',poLinesSum(p.id),p.archived?'yes':''];})],
+  'PO Lines':()=>[['PO number','Line','Description','WBS element','Spend code','GL code','Value','Invoiced','Remaining','Archived'],
+    ...S.poLines.map(l=>{const p=poOf(l.poId)||{};return [p.poNumber||'',l.lineNo,l.description||'',l.wbs||'',l.spendCode||'',l.glCode||'',parseNum(l.value),lineInvoiced(l.id),parseNum(l.value)-lineInvoiced(l.id),l.archived?'yes':''];})],
+  Invoices:()=>[['Invoice #','PO number','PO line','Value','Date','For','Notes'],
+    ...S.invoices.map(i=>{const l=lineOf(i.poLineId)||{};const p=poOf(l.poId)||{};return [i.invoiceNumber,p.poNumber||'',l.lineNo||'',parseNum(i.value),i.date||'',i.forWhat||'',i.notes||''];})],
+  Forecast:()=>[['Item','Level','For what','Supplier','Reference','Status','Start','End','Current value','Actuals to date',...ps.map(p=>p.label+' forecast'),...ps.map(p=>p.label+' actual')],
+    ...fcTopRows().flatMap(row=>[
+      [row.label,row.sub||'','',fcSupplier(row.ref),'','','','',row.current,row.actuals,...ps.map(p=>fcRollup(row,p.key)),...ps.map(p=>actualsInPeriod(row.lineIds,p))],
+      ...(row.children||[]).map(ch=>['    '+(ch.f.forWhat||'(forecast line)'),'Forecast line',ch.f.forWhat||'',fcSupplier(ch.f.parentRef),ch.sub,fcStatusName(ch.f.statusId),ch.f.startDate||'',ch.f.endDate||'',ch.current,ch.actuals,...ps.map(p=>fcOwn(ch.ref,ch.current,ch.actuals,p.key)),...ps.map(p=>actualsInPeriod(ch.lineIds,p))])])],
+  Actions:()=>{const rows=[['Task','Level','Type','State','Priority','Owner','Tags','Due','Completed','Last actioned','Links','Notes']];
+    walkTasks((t,depth)=>rows.push(['  '.repeat(depth)+(t.name||''),depth,t.type||'task',t.type==='header'?'':stateOf(t.stateId).name,priorityName(t.priorityId),t.owner||'',(t.tagIds||[]).map(id=>(taskTagOf(id)||{}).name).filter(Boolean).join(', '),t.due||'',t.completed||'',t.lastActioned||'',(t.links||[]).map(l=>refLabel(...l.split(':'))).join('; '),t.notes||''])); return rows;},
+  Calendar:()=>[['Date','End date','Time','Title','Tags','Organiser','Notes','Links'],
+    ...[...S.events].sort((a,b)=>a.date.localeCompare(b.date)).map(e=>[e.date,e.endDate||'',e.time||'',e.title,(e.tagIds||[]).map(id=>(tagOf(id)||{}).name).filter(Boolean).join(', '),e.organiser||'',e.notes||'',(e.links||[]).map(l=>refLabel(...l.split(':'))).join('; ')])],
+  Links:()=>[['Title','URL','Category','Notes'],...S.links.map(l=>[l.title||'',l.url||'',l.category||'',l.notes||''])],
+  Notes:()=>{const rows=[['Page','Type','Content']];
+    S.notes.forEach(pg=>{ if(pg.kind==='links') return;
+      const emit=(b,depth)=>{ if(b.type==='table'){ (b.rows||[]).forEach(r=>rows.push([pg.name,'table',r.map(htmlToText).join(' | ')])); }
+        else if(b.type==='grid'){ rows.push([pg.name,'grid',(b.columns||[]).map(c=>c.label).join(' | ')]); (b.rows||[]).forEach(gr=>rows.push([pg.name,'grid',(b.columns||[]).map(c=>gr[c.key]||'').join(' | ')])); }
+        else if(b.type!=='divider') rows.push([pg.name,b.type,'  '.repeat(depth)+htmlToText(b.html)]);
+        (b.children||[]).forEach(c=>emit(c,depth+1)); };
+      (pg.blocks||[]).forEach(b=>emit(b,0)); }); return rows;},
+}; }
 
 /* --- Markdown snapshot (AI-friendly) --- */
 function mdTable(head,rows){ if(!rows.length) return '_None._\n';
@@ -2815,8 +2832,8 @@ async function fileHandleFor(key){ const h=await idbGet(key); if(!h) return null
 async function refreshFileLabel(){ const el=$('#fileLabel'); if(!el) return;
   if(OVERVIEW||!window.showSaveFilePicker){ el.style.display='none'; return; } el.style.display='';
   const h=await idbGet(lsKey);
-  if(h){ el.textContent='📄 '+h.name; el.title='This programme saves to “'+h.name+'” — click to save or point it at a different file'; }
-  else { el.textContent='📄 link file…'; el.title='Not linked to a file yet — click to choose where this programme saves'; } }
+  if(h){ el.textContent='📄 '+h.name; el.title='This programme saves to “'+h.name+'” — click for save options'; el.classList.remove('warnlabel'); }
+  else { el.textContent='📄 Not saved to a file'; el.title='This programme lives in this browser only — click to save it to a file'; el.classList.add('warnlabel'); } }
 ACTIONS.saveJSON=async()=>{
   const content=JSON.stringify(S,null,1);
   const name=slug(S.programme.name)+'.programme.json';
@@ -2832,11 +2849,16 @@ ACTIONS.saveJSON=async()=>{
 };
 ACTIONS.fileInfo=async()=>{ if(!window.showSaveFilePicker) return ACTIONS.saveJSON();
   const h=await idbGet(lsKey);
-  modal(`<div class="m-h"><h3>Programme file</h3></div><div class="m-b">
-    <div class="small">${h?`<b>${esc(S.programme.name)}</b> saves to <b>${esc(h.name)}</b>. Browsers can’t open your file explorer for you, but you can re-save it now, or point this programme at a different file to be sure it lands in the right place.`:`<b>${esc(S.programme.name)}</b> isn’t linked to a file yet. Choose where it should save — each programme keeps its own file, so saving one never overwrites another.`}</div>
+  modal(`<div class="m-h"><h3>Save “${esc(S.programme.name)}”</h3></div><div class="m-b">
+    <div class="small" style="line-height:1.5">
+      <p style="margin:0 0 8px">Two things are always kept for this programme:</p>
+      <p style="margin:0 0 6px">🖥️ <b>This browser</b> — everything autosaves here automatically as you type (the “Saved” time, top-right). It stays on this computer, in this browser only. Clearing site data or using another browser/computer won’t have it.</p>
+      <p style="margin:0 0 10px">📄 <b>A file on your computer</b> — a portable <code>.programme.json</code> you save with 💾 Save. Back it up, move it, email it, or drop it into an AI model. ${h?`This programme is saved to <b>${esc(h.name)}</b>.`:`This programme <b>isn’t saved to a file yet</b>.`}</p>
+      <p style="margin:0;color:var(--ink-2)">Like Office: <b>Save</b> writes to the same file each time; <b>Save As…</b> lets you choose a new name or folder (to move it, use Save As to the new location — your computer keeps the old file, which you can delete). Each programme has its own file, so saving one never overwrites another.</p>
+    </div>
   </div><div class="m-f"><button class="btn" data-act="closeModal">Close</button>
-    ${h?'<button class="btn" data-act="relinkFile">Save to a different file…</button>':''}
-    <button class="btn primary" data-act="saveFromInfo">${h?'Save now':'Choose file &amp; save'}</button></div>`); };
+    <button class="btn" data-act="relinkFile">Save As / move…</button>
+    <button class="btn primary" data-act="saveFromInfo">${h?'Save':'Save to a file…'}</button></div>`); };
 ACTIONS.saveFromInfo=()=>{ closeModal(); ACTIONS.saveJSON(); };
 ACTIONS.relinkFile=async()=>{ await idbDel(lsKey); closeModal(); ACTIONS.saveJSON(); };
 ACTIONS.openJSON=async()=>{
