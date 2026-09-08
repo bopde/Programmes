@@ -52,6 +52,7 @@ header{position:sticky;top:0;z-index:40;background:color-mix(in srgb,var(--bg) 8
 .tabs button.on{background:var(--navy);color:#fff}
 .hd-actions{margin-left:auto;display:flex;align-items:center;gap:6px}
 .hd-actions .stamp{color:var(--ink-3);font-size:12px;margin-right:6px}
+.hd-actions .stamp.savefail{color:var(--bad);font-weight:700}
 
 /* ---------- buttons & inputs ---------- */
 button{font:inherit}
@@ -297,11 +298,11 @@ dialog .m-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;bord
 #slashmenu .ic{width:22px;text-align:center;color:var(--ink-2)}
 
 /* ---------- link picker ---------- */
-#lp-results{max-height:320px;overflow:auto;margin-top:8px}
-#lp-results button{display:flex;width:100%;border:0;background:none;text-align:left;padding:7px 10px;border-radius:8px;cursor:pointer;font:inherit;gap:9px;align-items:center}
-#lp-results button:hover{background:var(--sel)}
-#lp-results .ty{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);width:64px;flex:none}
-#lp-results .sub{color:var(--ink-3);font-size:12px;margin-left:auto}
+#lp-results,#qf-results{max-height:320px;overflow:auto;margin-top:8px}
+#lp-results button,#qf-results button{display:flex;width:100%;border:0;background:none;text-align:left;padding:7px 10px;border-radius:8px;cursor:pointer;font:inherit;gap:9px;align-items:center}
+#lp-results button:hover,#qf-results button:hover{background:var(--sel)}
+#lp-results .ty,#qf-results .ty{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);width:64px;flex:none}
+#lp-results .sub,#qf-results .sub{color:var(--ink-3);font-size:12px;margin-left:auto}
 
 .backlinks{margin-top:4px}
 .empty{padding:36px;text-align:center;color:var(--ink-3)}
@@ -362,7 +363,7 @@ let S=null, lsKey=null, TAB='budget';
 
 function defaultState(name){return {
   v:9,
-  programme:{name:name||'New Programme',currency:'$',created:todayStr(),modified:''},
+  programme:{name:name||'New Programme',currency:'$',created:todayStr(),modified:'',autosaveFile:false},
   settings:{
     taskStates:[
       {id:'todo', name:'To do', color:'#96a2ae', done:false},
@@ -419,18 +420,50 @@ function defaultState(name){return {
 function fyStartKey(){ const d=new Date(); const y=d.getMonth()+1>=7?d.getFullYear():d.getFullYear()-1; return y+'-07'; }
 function currentMonthKey(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
 
+let storageWarned=false;
 function save(){ if(!S) return; S.programme.modified=new Date().toISOString();
-  try{ localStorage.setItem(lsKey,JSON.stringify(S)); }catch(e){ console.warn(e); }
-  const t=new Date(); $('#stamp').textContent='Saved '+t.toLocaleTimeString('en-NZ',{hour:'2-digit',minute:'2-digit'});
+  let str; try{ str=JSON.stringify(S); }catch(e){ console.warn(e); return; }
+  const stamp=$('#stamp');
+  try{ localStorage.setItem(lsKey,str); storageWarned=false;
+    if(stamp){ stamp.textContent='Saved '+new Date().toLocaleTimeString('en-NZ',{hour:'2-digit',minute:'2-digit'}); stamp.classList.remove('savefail'); }
+  }catch(e){ console.warn(e); onSaveFailed(); }
+  noteChange(); scheduleFileAutosave();
 }
+function onSaveFailed(){ const stamp=$('#stamp'); if(stamp){ stamp.textContent='⚠ NOT saved — storage full'; stamp.classList.add('savefail'); }
+  if(storageWarned) return; storageWarned=true;
+  modal(`<div class="m-h"><h3>⚠ Couldn’t autosave</h3></div><div class="m-b">
+    <div class="small" style="line-height:1.5">This browser’s storage is full, so your latest changes could <b>not</b> be saved to the browser. To avoid losing work, <b>save this programme to a file now</b>, then free space by trimming very large notes or emptying 🗑 Trash. Programmes already saved to a file are safe.</div>
+  </div><div class="m-f"><button class="btn" data-act="closeModal">Later</button><button class="btn primary" data-act="saveFromInfo">💾 Save to a file now</button></div>`);
+}
+/* ---- undo / redo: coarse-grained snapshots of the whole programme ---- */
+let undoStack=[], redoStack=[], undoT=null, undoLock=false;
+function resetUndo(){ try{ undoStack=[JSON.stringify(S)]; }catch(e){ undoStack=[]; } redoStack=[]; }
+function noteChange(){ if(undoLock||OVERVIEW) return; clearTimeout(undoT);
+  undoT=setTimeout(()=>{ let s; try{ s=JSON.stringify(S); }catch(e){ return; }
+    if(undoStack[undoStack.length-1]!==s){ undoStack.push(s); if(undoStack.length>25) undoStack.shift(); redoStack=[]; } },800); }
+function applyUndoState(s){ undoLock=true; try{ S=JSON.parse(s); }catch(e){ undoLock=false; return; }
+  try{ localStorage.setItem(lsKey,s); }catch(e){} render(); setTimeout(()=>{ undoLock=false; },60); }
+function doUndo(){ if(OVERVIEW) return; clearTimeout(undoT); let cur; try{ cur=JSON.stringify(S); }catch(e){ return; }
+  if(undoStack[undoStack.length-1]!==cur) undoStack.push(cur);
+  if(undoStack.length<2) return toast('Nothing to undo');
+  redoStack.push(undoStack.pop()); applyUndoState(undoStack[undoStack.length-1]); toast('Undone'); }
+function doRedo(){ if(OVERVIEW||!redoStack.length) return; const s=redoStack.pop(); undoStack.push(s); applyUndoState(s); toast('Redone'); }
+/* ---- optional auto-save to the linked file (debounced) ---- */
+let fileAutosaveTimer=null;
+function scheduleFileAutosave(){ if(!S||!S.programme.autosaveFile||!window.showSaveFilePicker) return;
+  clearTimeout(fileAutosaveTimer); fileAutosaveTimer=setTimeout(writeBoundFile,1500); }
+async function writeBoundFile(){ if(!S||!S.programme.autosaveFile) return; const h=await fileHandleFor(lsKey); if(!h) return;
+  try{ const w=await h.createWritable(); await w.write(JSON.stringify(S,null,1)); await w.close(); refreshFileLabel(); }catch(e){} }
 function slug(s){return String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'programme';}
 function listLocal(){const out=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);
   if(k.startsWith('progapp:data:')){try{const d=JSON.parse(localStorage.getItem(k));out.push({key:k,name:d.programme.name,modified:d.programme.modified});}catch(e){}}}
   return out.sort((a,b)=>(b.modified||'').localeCompare(a.modified||''));}
 
 /* ---- multi-programme: unified read-only overview across every programme on this computer ---- */
-let OVERVIEW=false;
-function allProgrammes(){ return listLocal().map(p=>{ try{ return {key:p.key,name:p.name,st:migrate(JSON.parse(localStorage.getItem(p.key)))}; }catch(e){ return null; } }).filter(Boolean); }
+let OVERVIEW=false, ovCache=null;
+function allProgrammes(){ if(OVERVIEW&&ovCache) return ovCache; // cache while the read-only overview is open
+  const list=listLocal().map(p=>{ try{ return {key:p.key,name:p.name,st:migrate(JSON.parse(localStorage.getItem(p.key)))}; }catch(e){ return null; } }).filter(Boolean);
+  if(OVERVIEW) ovCache=list; return list; }
 function withState(st,fn){ const prev=S; S=st; try{ return fn(); } finally{ S=prev; } } // run read-only compute against another programme's state
 function updateProgSwitch(){ const sel=$('#progSwitch'); if(!sel) return; const list=listLocal();
   sel.innerHTML=`<option value="__ov" ${OVERVIEW?'selected':''}>★ All programmes (overview)</option>`
@@ -445,7 +478,7 @@ function newProgrammePrompt(){
   setTimeout(()=>{ const i=$('#npname'); if(i){ i.focus(); i.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); createProgrammeGo(); } }; } },40);
 }
 function createProgrammeGo(){ const name=($('#npname').value||'').trim(); if(!name) return toast('Give the programme a name'); closeModal(); createProgramme(name); }
-function enterOverview(){ OVERVIEW=true; document.title='All programmes — Programme Manager';
+function enterOverview(){ OVERVIEW=true; ovCache=null; document.title='All programmes — Programme Manager';
   const pn=$('#progName'); pn.textContent='All programmes'; pn.setAttribute('contenteditable','false');
   updateProgSwitch(); refreshFileLabel(); if(TAB==='status') TAB='budget'; render(); }
 
@@ -462,12 +495,12 @@ function showStart(){
 function openKey(key){
   try{ S=migrate(JSON.parse(localStorage.getItem(key))); }catch(e){ toast('Could not open programme'); showStart(); return; }
   lsKey=key; localStorage.setItem('progapp:last',key);
-  OVERVIEW=false; $('#progName').setAttribute('contenteditable','true');
+  OVERVIEW=false; ovCache=null; $('#progName').setAttribute('contenteditable','true');
   $('#start').classList.remove('show'); initUI();
 }
 function createProgramme(name){
   S=defaultState(name); lsKey='progapp:data:'+slug(name)+'-'+uid().slice(-4);
-  OVERVIEW=false; $('#progName').setAttribute('contenteditable','true');
+  OVERVIEW=false; ovCache=null; $('#progName').setAttribute('contenteditable','true');
   localStorage.setItem('progapp:last',lsKey); save();
   $('#start').classList.remove('show'); initUI();
 }
@@ -578,7 +611,7 @@ function importState(obj){
 function initUI(){
   $('#progName').textContent=S.programme.name;
   document.title=S.programme.name+' — Programme Manager';
-  updateProgSwitch(); refreshFileLabel();
+  updateProgSwitch(); refreshFileLabel(); resetUndo();
   setTab(TAB);
 }
 function setTab(name){
@@ -774,6 +807,18 @@ function linkPicker(cb,excludeRef){ lpCallback=cb;
   };
   draw(''); $('#lp-q').addEventListener('input',e=>draw(e.target.value)); setTimeout(()=>{const i=$('#lp-q'); if(i) i.focus();},50);
 }
+/* quick find (Ctrl/Cmd-K) — jump to any task, contract, PO, line, event, forecast line or notes page */
+function openQuickFind(){ if(OVERVIEW) return toast('Switch to a programme to search it');
+  const src=()=>[...allEntities(), ...S.notes.map(pg=>({ref:'note:'+pg.id,label:pg.name||'Notes',sub:'Notes page',ty:'Notes'}))];
+  modal(`<div class="m-h"><h3>Find…</h3></div><div class="m-b">
+    <input id="qf-q" placeholder="Jump to a task, contract, PO, line, event, forecast line or note…" style="width:100%" autocomplete="off">
+    <div id="qf-results"></div></div>
+    <div class="m-f"><button class="btn" data-act="closeModal">Close</button></div>`);
+  const draw=q=>{ q=(q||'').toLowerCase();
+    const items=src().filter(e=>!q||(e.label+' '+e.sub+' '+e.ty).toLowerCase().includes(q)).slice(0,50);
+    $('#qf-results').innerHTML=items.map(e=>`<button data-act="qfPick" data-ref="${esc(e.ref)}"><span class="ty">${e.ty}</span><span>${esc(e.label)}</span><span class="sub">${esc(e.sub)}</span></button>`).join('')||'<div class="empty">Nothing found</div>'; };
+  draw(''); $('#qf-q').addEventListener('input',e=>draw(e.target.value)); setTimeout(()=>{const i=$('#qf-q'); if(i) i.focus();},50);
+}
 function backlinksTo(ref){ const out=[];
   walkTasks(t=>{ if((t.links||[]).includes(ref)) out.push('task:'+t.id); });
   S.events.forEach(e=>{ if((e.links||[]).includes(ref)) out.push('event:'+e.id); });
@@ -824,6 +869,7 @@ function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('sh
 
 const ACTIONS={}, FORMS={};
 ACTIONS.createProgrammeGo=createProgrammeGo;
+ACTIONS.qfPick=t=>{ closeModal(); gotoRef(t.dataset.ref); };
 document.addEventListener('click',e=>{
   const g=e.target.closest('[data-goto]');
   if(g&&!e.target.closest('.x')){ e.preventDefault(); gotoRef(g.dataset.goto); return; }
@@ -1270,19 +1316,23 @@ function msFilter(scope,field,label,options,selected){
     </div></span>`;
 }
 function msfState(scope){ return scope==='ov'?S.ui.ovF:scope==='fc'?S.ui.fcF:scope==='cal'?S.ui.calF:S.ui.structF; }
-let msfOpen=null; // 'scope:field' of the popover to keep open across the live-filter re-render
+let msfOpen=null, msfSearchVal=''; // popover to keep open + its search text, preserved across the live-filter re-render
+function msfApplySearch(pop){ const q=(msfSearchVal||'').toLowerCase();
+  pop.querySelectorAll('.msf-list .msf-opt').forEach(o=>{ o.style.display=o.textContent.toLowerCase().includes(q)?'':'none'; }); }
 window.msfChange=el=>{ const wrap=el.closest('.msf'); const pop=wrap.querySelector('.msf-pop'); const [scope,field]=wrap.dataset.msf.split(':');
   const allBox=pop.querySelector('[data-msfall]'); const boxes=[...pop.querySelectorAll('.msf-list input')];
   if(el.hasAttribute('data-msfall')){ if(el.checked) boxes.forEach(b=>b.checked=false); else if(!boxes.some(b=>b.checked)) el.checked=true; }
   else { if(el.checked) allBox.checked=false; if(!boxes.some(b=>b.checked)) allBox.checked=true; }
   msfState(scope)[field]=allBox.checked?[]:boxes.filter(b=>b.checked).map(b=>b.value);
-  msfOpen=wrap.dataset.msf; save(); render(); };
-window.msfSearch=el=>{ const q=el.value.toLowerCase(); el.closest('.msf-pop').querySelectorAll('.msf-list .msf-opt').forEach(o=>{ o.style.display=o.textContent.toLowerCase().includes(q)?'':'none'; }); };
+  msfOpen=wrap.dataset.msf; save(); render(); }; // re-render live; reopenMsf restores this popover + its search
+window.msfSearch=el=>{ msfSearchVal=el.value; msfApplySearch(el.closest('.msf-pop')); };
 ACTIONS.msfToggle=t=>{ const wrap=t.closest('.msf'); const pop=wrap.querySelector('.msf-pop'); const willOpen=pop.hidden;
   document.querySelectorAll('.msf-pop').forEach(p=>p.hidden=true);
-  if(willOpen){ pop.hidden=false; msfOpen=wrap.dataset.msf; const s=pop.querySelector('.msf-search'); if(s) setTimeout(()=>s.focus(),20); } else msfOpen=null; };
-function reopenMsf(){ if(!msfOpen) return; const wrap=document.querySelector(`.msf[data-msf="${msfOpen}"]`); if(wrap){ const pop=wrap.querySelector('.msf-pop'); if(pop) pop.hidden=false; } }
-document.addEventListener('click',e=>{ if(!e.target.closest('.msf')&&msfOpen){ msfOpen=null; document.querySelectorAll('.msf-pop').forEach(p=>p.hidden=true); } });
+  if(willOpen){ pop.hidden=false; msfOpen=wrap.dataset.msf; msfSearchVal=''; const s=pop.querySelector('.msf-search'); if(s) setTimeout(()=>s.focus(),20); } else { msfOpen=null; msfSearchVal=''; } };
+function reopenMsf(){ if(!msfOpen) return; const wrap=document.querySelector(`.msf[data-msf="${msfOpen}"]`); if(!wrap) return;
+  const pop=wrap.querySelector('.msf-pop'); if(!pop) return; pop.hidden=false;
+  const s=pop.querySelector('.msf-search'); if(s){ s.value=msfSearchVal||''; msfApplySearch(pop); try{ s.focus(); s.setSelectionRange(s.value.length,s.value.length); }catch(e){} } }
+document.addEventListener('click',e=>{ if(!e.target.closest('.msf')&&msfOpen){ msfOpen=null; msfSearchVal=''; document.querySelectorAll('.msf-pop').forEach(p=>p.hidden=true); } });
 const fsel=(F,k)=>(F&&F[k])||[]; // tolerant accessor (arrays)
 function contractMatchesF(c,F){ if(fsel(F,'supplier').length&&!F.supplier.includes(c.supplier)) return false;
   if(fsel(F,'contract').length&&!F.contract.includes(c.contractNumber)) return false;
@@ -1601,7 +1651,7 @@ function fcCellHTML(ref,current,actuals,p,extra){
   if(extra.readonly){ // parent contract/PO row: not editable, just the summed forecast of the lines below
     const roll=extra.roll||0; const dl=fcDelta(roll,act);
     const parts=[]; if(act) parts.push('act '+fmt(act)); if(dl.chip) parts.push(dl.chip);
-    return `<td class="fc-cell fc-ro num nowrap ${dl.cls}" title="Sum of the forecast lines below (edit those, not this)">${roll?fmt(roll):'·'}<span class="sub">${parts.join(' ')}</span></td>`;
+    return `<td class="fc-cell fc-ro num nowrap ${dl.cls}" title="Sum of the forecast lines below (edit those, not this)">${roll?fmt(roll):''}<span class="sub">${parts.join(' ')}</span></td>`;
   }
   const f=fcEntry(ref,p.key);
   const shown=f?(f.mode==='pct'?f.v+'%':fmt(f.v)):'';
@@ -1611,7 +1661,7 @@ function fcCellHTML(ref,current,actuals,p,extra){
   if(f&&f.mode==='pct') parts.push('≈'+fmt(own));
   if(act) parts.push('act '+fmt(act));
   if(dl.chip) parts.push(dl.chip);
-  return `<td class="fc-cell ${dl.cls}"><input data-fc="${ref}|${p.key}" class="${f&&f.mode==='pct'?'pct':''}" value="${esc(shown)}" placeholder="·" title="Enter a value, or a % of remaining (e.g. 25%).">
+  return `<td class="fc-cell ${dl.cls}"><input data-fc="${ref}|${p.key}" class="${f&&f.mode==='pct'?'pct':''}" value="${esc(shown)}" placeholder="" title="Enter a $ value, or a % (max 100) of the line's remaining budget = value − actuals to date.">
     <span class="sub">${parts.join(' · ')||''}</span></td>`;
 }
 function renderForecast(){
@@ -1640,7 +1690,7 @@ function renderForecast(){
         <label class="small muted" style="display:inline-flex;align-items:center;gap:2px">end <input type="date" data-bind="fcLines.${f.id}.endDate" value="${esc(f.endDate||'')}" style="width:130px"></label>`;
   const fcBacklinkBadge=f=>{ const n=backlinksTo('fcline:'+f.id).length;
     return n?`<span class="badge" title="${n} task/event/note link${n===1?'':'s'} — these follow through if this is converted to a contract">↩${n}</span>`:''; };
-  const lineTools=f=>`<td class="nowrap">${f.parentRef==='planned'?`<button class="btn sm ghost" data-act="convertPlanned" data-id="${f.id}" title="Convert this planned spend into a contract">→ Contract</button>`:''}<button class="btn sm ghost" data-act="spreadRow" data-ref="fcline:${f.id}" title="Spread remainder evenly over empty periods">↔</button>
+  const lineTools=f=>`<td class="nowrap">${f.parentRef==='planned'?`<button class="btn sm ghost" data-act="convertPlanned" data-id="${f.id}" title="Convert this planned spend into a contract">→ Contract</button>`:''}
         <button class="btn sm ghost" data-act="archFcLine" data-id="${f.id}" title="${f.archived?'Unarchive':'Archive'} forecast line">${f.archived?'↩':'🗄'}</button>
         <button class="btn sm ghost danger" data-act="delFcLine" data-id="${f.id}" title="Delete forecast line">✕</button></td>`;
   const childHTML=ch=>{ const f=ch.f;
@@ -1734,20 +1784,25 @@ function renderForecast(){
     <thead><tr><th>Item</th><th class="num nowrap">Total contract value</th><th class="num nowrap" title="Invoiced within the selected financial-year window">Actuals (period)</th><th class="num nowrap" title="Total contract value − actuals to date">Total remaining</th>
     ${ps.map(p=>`<th class="num nowrap">${p.label}${p.sub?`<br><span style="font-weight:400;text-transform:none;letter-spacing:0">${p.sub}</span>`:''}</th>`).join('')}<th class="num">Forecast Σ</th><th class="num nowrap" title="Budget still uncommitted once each quarter counts the greater of forecast or actual — negative means forecast + spend exceed the budget">Over / Under forecast</th><th></th></tr></thead>
     <tbody>${body}<tr class="tot"><td>Total</td><td class="num nowrap">${money(tCur)}</td><td class="num nowrap">${money(tWinAct)}</td><td class="num nowrap">${money(tCur-tAllAct)}</td>${colTot}<td class="num nowrap">${money(tFc)}</td><td class="num nowrap">${money(tOverUnder)}</td><td></td></tr></tbody></table></div>
-    <div class="small muted" style="margin-top:8px">Quarters follow the <b>July–June financial year</b> — Q1 FY27 = Jul–Sep 2026. ▶ expands a contract/PO to add <b>forecast lines</b>; you phase on the lines (type a value like <b>5,000</b> or a % of remaining like <b>25%</b>), and the contract row above is the read-only sum of its lines. Several lines can phase the same PO line. Archive a line with 🗄 and use “show archived” to bring them back. Paste tab-separated values from Excel to fill several periods at once. “act” shows invoiced actuals in that period. Each quarter counts the <b>greater of forecast or actual</b> toward the budget, so invoicing a quarter you forecast doesn’t double-count; where an actual differs from the forecast a <span class="fcd over">Δ</span> flags it (red = over forecast, green = under). <b>Actuals (period)</b> counts only what’s invoiced inside the chosen financial-year window; <b>Total remaining</b> is total contract value − actuals to date; and <b>Over / Under forecast</b> is the budget still uncommitted once each quarter counts the greater of forecast or actual (negative = forecast + spend exceed the budget). Set the window to a year to see whether there’s enough budget.</div>`;
+    <div class="small muted" style="margin-top:8px">Quarters follow the <b>July–June financial year</b> — Q1 FY27 = Jul–Sep 2026. ▶ expands a contract/PO to add <b>forecast lines</b>. A new line auto-splits evenly across the year (<b>25%</b> a quarter); adjust any cell — type a <b>$ value</b>, or a <b>%</b> (max 100) of the line's <b>remaining budget = its value − actuals to date</b>. The contract row above is the read-only sum of its lines, and several lines can phase the same PO line. Archive a line with 🗄 and use “show archived” to bring them back. Paste tab-separated values from Excel to fill several periods at once. “act” shows invoiced actuals in that period. Each quarter counts the <b>greater of forecast or actual</b> toward the budget, so invoicing a quarter you forecast doesn’t double-count; where an actual differs from the forecast a <span class="fcd over">Δ</span> flags it (red = over forecast, green = under). <b>Actuals (period)</b> counts only what’s invoiced inside the chosen financial-year window; <b>Total remaining</b> is total contract value − actuals to date; and <b>Over / Under forecast</b> is the budget still uncommitted once each quarter counts the greater of forecast or actual (negative = forecast + spend exceed the budget). Set the window to a year to see whether there’s enough budget.</div>`;
 }
 function handleForecastCell(el){ const [ref,key]=el.dataset.fc.split('|'); const raw=el.value.trim();
   if(!raw){ delete S.forecast[ref+'|'+key]; }
-  else if(raw.endsWith('%')){ S.forecast[ref+'|'+key]={mode:'pct',v:parseNum(raw)}; }
+  else if(raw.endsWith('%')){ S.forecast[ref+'|'+key]={mode:'pct',v:Math.min(100,Math.max(0,parseNum(raw)))}; } // % can't exceed 100
   else{ S.forecast[ref+'|'+key]={mode:'val',v:parseNum(raw)}; }
   save(); renderKeepFocus();
 }
+/* new forecast lines default to an even quarterly split (25% across a 4-quarter year) */
+function fcSeedSplit(fcId){ const ps=periodList(); if(!ps.length) return; const pct=Math.round((100/ps.length)*100)/100;
+  ps.forEach(p=>{ S.forecast['fcline:'+fcId+'|'+p.key]={mode:'pct',v:pct}; }); }
 ACTIONS.fcToggle=t=>{ const ref=t.dataset.ref; S.ui.fcOpen[ref]=!S.ui.fcOpen[ref]; save(); render(); };
 ACTIONS.fcClearF=()=>{ S.ui.fcF={supplier:[],wbs:[],contract:[]}; save(); render(); };
-ACTIONS.addFcLine=t=>{ const parentRef=t.dataset.parent;
-  S.fcLines.push({id:uid(),parentRef,poId:'',poLineId:'',forWhat:'',supplier:'',statusId:'committed',startDate:'',endDate:'',archived:false});
+ACTIONS.addFcLine=t=>{ const parentRef=t.dataset.parent; const id=uid();
+  S.fcLines.push({id,parentRef,poId:'',poLineId:'',forWhat:'',supplier:'',statusId:'committed',startDate:'',endDate:'',archived:false});
+  fcSeedSplit(id);
   S.ui.fcOpen[parentRef]=true; save(); render(); };
-ACTIONS.addPlannedLine=()=>{ S.fcLines.push({id:uid(),parentRef:'planned',poId:'',poLineId:'',forWhat:'',supplier:'',plannedValue:0,statusId:'planned',startDate:'',endDate:'',archived:false});
+ACTIONS.addPlannedLine=()=>{ const id=uid(); S.fcLines.push({id,parentRef:'planned',poId:'',poLineId:'',forWhat:'',supplier:'',plannedValue:0,statusId:'planned',startDate:'',endDate:'',archived:false});
+  fcSeedSplit(id);
   S.ui.fcOpen['planned']=true; save(); render(); };
 
 /* ---- convert a planned spend into a contract / PO / line (keeps the fcLine id so phasing carries over) ---- */
@@ -1846,7 +1901,7 @@ ACTIONS.fcSeedLines=t=>{ const parentRef=t.dataset.parent;
   let n=0;
   pos.filter(p=>!p.archived).forEach(p=>linesOfPO(p.id).filter(l=>!l.archived).forEach(l=>{
     if(!S.fcLines.some(f=>f.parentRef===parentRef&&f.poLineId===l.id)){
-      S.fcLines.push({id:uid(),parentRef,poId:p.id,poLineId:l.id,forWhat:l.description||'',supplier:'',statusId:'committed',startDate:'',endDate:'',archived:false}); n++; }
+      const id=uid(); S.fcLines.push({id,parentRef,poId:p.id,poLineId:l.id,forWhat:l.description||'',supplier:'',statusId:'committed',startDate:'',endDate:'',archived:false}); fcSeedSplit(id); n++; }
   }));
   if(!n) return toast('Every PO line already has a forecast line');
   S.ui.fcOpen[parentRef]=true; save(); render(); toast(n+' forecast line'+(n===1?'':'s')+' added');
@@ -2854,12 +2909,16 @@ ACTIONS.fileInfo=async()=>{ if(!window.showSaveFilePicker) return ACTIONS.saveJS
       <p style="margin:0 0 8px">Two things are always kept for this programme:</p>
       <p style="margin:0 0 6px">🖥️ <b>This browser</b> — everything autosaves here automatically as you type (the “Saved” time, top-right). It stays on this computer, in this browser only. Clearing site data or using another browser/computer won’t have it.</p>
       <p style="margin:0 0 10px">📄 <b>A file on your computer</b> — a portable <code>.programme.json</code> you save with 💾 Save. Back it up, move it, email it, or drop it into an AI model. ${h?`This programme is saved to <b>${esc(h.name)}</b>.`:`This programme <b>isn’t saved to a file yet</b>.`}</p>
-      <p style="margin:0;color:var(--ink-2)">Like Office: <b>Save</b> writes to the same file each time; <b>Save As…</b> lets you choose a new name or folder (to move it, use Save As to the new location — your computer keeps the old file, which you can delete). Each programme has its own file, so saving one never overwrites another.</p>
+      <p style="margin:0 0 10px;color:var(--ink-2)">Like Office: <b>Save</b> writes to the same file each time; <b>Save As…</b> lets you choose a new name or folder (to move it, use Save As to the new location — your computer keeps the old file, which you can delete). Each programme has its own file, so saving one never overwrites another.</p>
+      <label style="display:flex;gap:7px;align-items:flex-start"><input type="checkbox" ${S.programme.autosaveFile?'checked':''} onchange="toggleAutosaveFile(this)" style="margin-top:2px"><span>Also <b>auto-save to the file</b> as I work, so the file always mirrors the browser (writes a couple of seconds after you stop typing).${h?'':' Turning this on will ask you to choose the file first.'}</span></label>
     </div>
   </div><div class="m-f"><button class="btn" data-act="closeModal">Close</button>
     <button class="btn" data-act="relinkFile">Save As / move…</button>
     <button class="btn primary" data-act="saveFromInfo">${h?'Save':'Save to a file…'}</button></div>`); };
 ACTIONS.saveFromInfo=()=>{ closeModal(); ACTIONS.saveJSON(); };
+window.toggleAutosaveFile=async el=>{ S.programme.autosaveFile=el.checked; save();
+  if(el.checked){ const h=await fileHandleFor(lsKey); if(!h){ closeModal(); await ACTIONS.saveJSON(); } else { writeBoundFile(); toast('Auto-save to file on'); } }
+  else toast('Auto-save to file off'); };
 ACTIONS.relinkFile=async()=>{ await idbDel(lsKey); closeModal(); ACTIONS.saveJSON(); };
 ACTIONS.openJSON=async()=>{
   if(window.showOpenFilePicker){
@@ -2875,7 +2934,15 @@ $('#filein').addEventListener('change',async e=>{
   e.target.value='';
 });
 document.addEventListener('keydown',e=>{
-  if((e.ctrlKey||e.metaKey)&&e.key==='s'){ e.preventDefault(); ACTIONS.saveJSON(); }
+  const mod=e.ctrlKey||e.metaKey; if(!mod) return;
+  const k=e.key.toLowerCase();
+  if(k==='s'){ e.preventDefault(); ACTIONS.saveJSON(); return; }
+  if(k==='k'){ e.preventDefault(); openQuickFind(); return; }
+  // Undo/redo — but let the browser handle it while typing in a field or note block
+  const ae=document.activeElement; const editing=ae&&(ae.isContentEditable||ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.tagName==='SELECT');
+  if(editing) return;
+  if(k==='z'&&!e.shiftKey){ e.preventDefault(); doUndo(); return; }
+  if((k==='z'&&e.shiftKey)||k==='y'){ e.preventDefault(); doRedo(); return; }
 });
 
 boot();
