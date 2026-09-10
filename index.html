@@ -435,14 +435,19 @@ function onSaveFailed(){ const stamp=$('#stamp'); if(stamp){ stamp.textContent='
     <div class="small" style="line-height:1.5">This browser’s storage is full, so your latest changes could <b>not</b> be saved to the browser. To avoid losing work, <b>save this programme to a file now</b>, then free space by trimming very large notes or emptying 🗑 Trash. Programmes already saved to a file are safe.</div>
   </div><div class="m-f"><button class="btn" data-act="closeModal">Later</button><button class="btn primary" data-act="saveFromInfo">💾 Save to a file now</button></div>`);
 }
-/* ---- undo / redo: coarse-grained snapshots of the whole programme ---- */
-let undoStack=[], redoStack=[], undoT=null, undoLock=false;
-function resetUndo(){ try{ undoStack=[JSON.stringify(S)]; }catch(e){ undoStack=[]; } redoStack=[]; }
+/* ---- undo / redo: coarse-grained snapshots of the whole programme (data only, not view state) ---- */
+let undoStack=[], redoStack=[], undoT=null, undoLock=false, lastDataFp='';
+function dataFp(){ const u=S.ui, m=S.programme&&S.programme.modified; // fingerprint excluding view state and the save timestamp
+  S.ui=undefined; if(S.programme) S.programme.modified='';
+  let s; try{ s=JSON.stringify(S); }catch(e){ s=Math.random()+''; }
+  S.ui=u; if(S.programme) S.programme.modified=m; return s; }
+function resetUndo(){ try{ undoStack=[JSON.stringify(S)]; }catch(e){ undoStack=[]; } redoStack=[]; lastDataFp=dataFp(); }
 function noteChange(){ if(undoLock||OVERVIEW) return; clearTimeout(undoT);
-  undoT=setTimeout(()=>{ let s; try{ s=JSON.stringify(S); }catch(e){ return; }
-    if(undoStack[undoStack.length-1]!==s){ undoStack.push(s); if(undoStack.length>25) undoStack.shift(); redoStack=[]; } },800); }
+  undoT=setTimeout(()=>{ const fp=dataFp(); if(fp===lastDataFp) return; // ignore pure view-state changes (filters, tab, calendar nav)
+    let s; try{ s=JSON.stringify(S); }catch(e){ return; }
+    undoStack.push(s); if(undoStack.length>25) undoStack.shift(); redoStack=[]; lastDataFp=fp; },800); }
 function applyUndoState(s){ undoLock=true; try{ S=JSON.parse(s); }catch(e){ undoLock=false; return; }
-  try{ localStorage.setItem(lsKey,s); }catch(e){} render(); setTimeout(()=>{ undoLock=false; },60); }
+  try{ localStorage.setItem(lsKey,s); }catch(e){} lastDataFp=dataFp(); render(); setTimeout(()=>{ undoLock=false; },60); }
 function doUndo(){ if(OVERVIEW) return; clearTimeout(undoT); let cur; try{ cur=JSON.stringify(S); }catch(e){ return; }
   if(undoStack[undoStack.length-1]!==cur) undoStack.push(cur);
   if(undoStack.length<2) return toast('Nothing to undo');
@@ -454,6 +459,9 @@ function scheduleFileAutosave(){ if(!S||!S.programme.autosaveFile||!window.showS
   clearTimeout(fileAutosaveTimer); fileAutosaveTimer=setTimeout(writeBoundFile,1500); }
 async function writeBoundFile(){ if(!S||!S.programme.autosaveFile) return; const h=await fileHandleFor(lsKey); if(!h) return;
   try{ const w=await h.createWritable(); await w.write(JSON.stringify(S,null,1)); await w.close(); refreshFileLabel(); }catch(e){} }
+function flushFileAutosave(){ clearTimeout(fileAutosaveTimer); // best-effort final write of the OUTGOING programme before a switch (snapshots so a later S/lsKey change can't misdirect it)
+  if(!(S&&S.programme&&S.programme.autosaveFile)) return; const st=JSON.stringify(S), key=lsKey;
+  fileHandleFor(key).then(h=>{ if(!h) return; h.createWritable().then(w=>w.write(st).then(()=>w.close())).catch(()=>{}); }).catch(()=>{}); }
 function slug(s){return String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'programme';}
 function listLocal(){const out=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);
   if(k.startsWith('progapp:data:')){try{const d=JSON.parse(localStorage.getItem(k));out.push({key:k,name:d.programme.name,modified:d.programme.modified});}catch(e){}}}
@@ -493,12 +501,14 @@ function showStart(){
   $('#start').classList.add('show');
 }
 function openKey(key){
+  flushFileAutosave();
   try{ S=migrate(JSON.parse(localStorage.getItem(key))); }catch(e){ toast('Could not open programme'); showStart(); return; }
   lsKey=key; localStorage.setItem('progapp:last',key);
   OVERVIEW=false; ovCache=null; $('#progName').setAttribute('contenteditable','true');
   $('#start').classList.remove('show'); initUI();
 }
 function createProgramme(name){
+  flushFileAutosave();
   S=defaultState(name); lsKey='progapp:data:'+slug(name)+'-'+uid().slice(-4);
   OVERVIEW=false; ovCache=null; $('#progName').setAttribute('contenteditable','true');
   localStorage.setItem('progapp:last',lsKey); save();
@@ -602,11 +612,13 @@ function replaceStateInPlace(obj){ // update ALL data of the CURRENT programme (
   S=migrate(obj); localStorage.setItem('progapp:last',lsKey); save(); initUI(); return true; }
 function importState(obj){
   if(!obj||!obj.programme){ toast('Not a valid programme file'); return; }
-  S=migrate(obj); lsKey='progapp:data:'+slug(S.programme.name)+'-'+uid().slice(-4);
-  const dup=listLocal().find(p=>p.name===S.programme.name);
-  if(dup) lsKey=dup.key; // overwrite the local copy of the same programme
+  const nm=obj.programme.name; const dup=listLocal().find(p=>p.name===nm);
+  let overwrite=false;
+  if(dup) overwrite=confirm('A programme named “'+nm+'” already exists in this browser.\n\nOK = replace that programme with this file.\nCancel = keep both (open this file as a separate copy).');
+  S=migrate(obj); OVERVIEW=false; ovCache=null; $('#progName').setAttribute('contenteditable','true');
+  lsKey=(dup&&overwrite)?dup.key:('progapp:data:'+slug(S.programme.name)+'-'+uid().slice(-4));
   localStorage.setItem('progapp:last',lsKey); save();
-  $('#start').classList.remove('show'); initUI(); toast('Programme loaded');
+  $('#start').classList.remove('show'); initUI(); toast(dup&&!overwrite?'Opened as a separate copy':'Programme loaded');
 }
 function initUI(){
   $('#progName').textContent=S.programme.name;
@@ -615,7 +627,7 @@ function initUI(){
   setTab(TAB);
 }
 function setTab(name){
-  if(S&&S.tasks&&pruneEmptyTasks()) save(); // drop blank tasks when leaving/switching
+  if(!OVERVIEW&&S&&S.tasks&&pruneEmptyTasks()) save(); // drop blank tasks when leaving/switching (never in read-only overview)
   TAB=name;
   $$('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===name));
   render();
@@ -638,21 +650,23 @@ function render(){
 
 /* ---- unified overview renderers (read-only, aggregate every programme) ---- */
 function renderOvBudget(v){
-  const progs=allProgrammes(); let body=''; const gt={current:0,actuals:0,remaining:0};
-  progs.forEach(pr=>{
-    const rows=withState(pr.st,()=>overviewRows().filter(r=>!r.archived));
-    if(!rows.length) return;
-    const st={current:0,actuals:0,remaining:0};
-    rows.forEach(r=>{st.current+=r.current;st.actuals+=r.actuals;st.remaining+=r.remaining;});
-    gt.current+=st.current; gt.actuals+=st.actuals; gt.remaining+=st.remaining;
-    body+=`<tr class="grp"><td colspan="6">${esc(pr.name)} <span class="muted small">· ${rows.length} row${rows.length>1?'s':''} · ${money(st.current)}</span></td></tr>`
-      +rows.map(r=>`<tr><td>${esc(r.what)||'<span class="muted small">'+r.kind+'</span>'}</td><td class="nowrap">${esc(r.supplier)}</td><td class="nowrap">${esc(r.contractNo)||'<span class="muted">—</span>'}</td><td class="num nowrap">${money(r.current)}</td><td class="num nowrap">${money(r.actuals)}</td><td class="num nowrap ${r.remaining<0?'due-over':''}">${money(r.remaining)}</td></tr>`).join('')
-      +`<tr class="tot"><td colspan="3">Subtotal — ${esc(pr.name)}</td><td class="num nowrap">${money(st.current)}</td><td class="num nowrap">${money(st.actuals)}</td><td class="num nowrap">${money(st.remaining)}</td></tr>`;
+  const progs=allProgrammes(); let body=''; const gt={current:0,actuals:0,remaining:0}; const curs=new Set();
+  progs.forEach(pr=>{ curs.add((pr.st.programme&&pr.st.programme.currency)||'$');
+    const built=withState(pr.st,()=>{ // build inside withState so money() uses THIS programme's currency
+      const rows=overviewRows().filter(r=>!r.archived); if(!rows.length) return null;
+      const st={current:0,actuals:0,remaining:0}; rows.forEach(r=>{st.current+=r.current;st.actuals+=r.actuals;st.remaining+=r.remaining;});
+      const html=`<tr class="grp"><td colspan="6">${esc(pr.name)} <span class="muted small">· ${rows.length} row${rows.length>1?'s':''} · ${money(st.current)}</span></td></tr>`
+        +rows.map(r=>`<tr><td>${esc(r.what)||'<span class="muted small">'+r.kind+'</span>'}</td><td class="nowrap">${esc(r.supplier)}</td><td class="nowrap">${esc(r.contractNo)||'<span class="muted">—</span>'}</td><td class="num nowrap">${money(r.current)}</td><td class="num nowrap">${money(r.actuals)}</td><td class="num nowrap ${r.remaining<0?'due-over':''}">${money(r.remaining)}</td></tr>`).join('')
+        +`<tr class="tot"><td colspan="3">Subtotal — ${esc(pr.name)}</td><td class="num nowrap">${money(st.current)}</td><td class="num nowrap">${money(st.actuals)}</td><td class="num nowrap">${money(st.remaining)}</td></tr>`;
+      return {st,html}; });
+    if(!built) return;
+    gt.current+=built.st.current; gt.actuals+=built.st.actuals; gt.remaining+=built.st.remaining; body+=built.html;
   });
+  const gm=curs.size===1?(n=>[...curs][0]+fmt(n)):(n=>fmt(n)); // grand total: shared symbol only if every programme uses the same currency
   v.innerHTML=`<div class="toolbar"><h2 style="margin:0;font-size:18px">Unified budget — all programmes</h2></div>
     <div class="tblwrap"><table class="tbl"><thead><tr><th>For what</th><th>Supplier</th><th>Contract #</th><th class="num">Current</th><th class="num">Actuals</th><th class="num">Remaining</th></tr></thead>
     <tbody>${body||'<tr><td colspan="6"><div class="empty">No programmes with budget data yet.</div></td></tr>'}
-    ${body?`<tr class="tot"><td colspan="3"><b>All programmes</b></td><td class="num nowrap"><b>${money(gt.current)}</b></td><td class="num nowrap"><b>${money(gt.actuals)}</b></td><td class="num nowrap ${gt.remaining<0?'due-over':''}"><b>${money(gt.remaining)}</b></td></tr>`:''}
+    ${body?`<tr class="tot"><td colspan="3"><b>All programmes</b></td><td class="num nowrap"><b>${gm(gt.current)}</b></td><td class="num nowrap"><b>${gm(gt.actuals)}</b></td><td class="num nowrap ${gt.remaining<0?'due-over':''}"><b>${gm(gt.remaining)}</b></td></tr>`:''}
     </tbody></table></div>
     <div class="small muted" style="margin-top:8px">Read-only roll-up of every programme on this computer. Switch to a single programme from the title bar to edit it.</div>`;
 }
@@ -1021,7 +1035,7 @@ document.addEventListener('paste',e=>{
     const ps=periodList(); let i=ps.findIndex(p=>p.key===startKey); if(i<0) return;
     vals.forEach(v=>{ if(i<ps.length){ const key=ref+'|'+ps[i].key;
       if(!v) delete S.forecast[key];
-      else if(v.endsWith('%')) S.forecast[key]={mode:'pct',v:parseNum(v)};
+      else if(v.endsWith('%')) S.forecast[key]={mode:'pct',v:Math.min(100,Math.max(0,parseNum(v)))}; // same 0–100 cap as typed entry
       else S.forecast[key]={mode:'val',v:parseNum(v)};
       i++; } });
     save(); render(); toast('Pasted across '+Math.min(vals.length,ps.length)+' periods');
@@ -1188,10 +1202,10 @@ function renderBudgetLines(){
   const ovwin=$('#ovWin'); if(ovwin) ovwin.onchange=e=>{ S.ui.ovWindow=e.target.checked; save(); render(); };
 
   const cols=BUDGET_COLS.filter(c=>view.cols.includes(c.k));
-  const OF=S.ui.ovF;
+  sanitizeFilters(S.ui.ovF); const OF=S.ui.ovF;
   let rows=overviewRows().filter(r=>S.ui.budgetArch==='show'||(S.ui.budgetArch==='only'?r.archived:!r.archived));
   rows=rows.filter(r=>(!OF.supplier.length||OF.supplier.includes(r.supplier))&&(!OF.contract.length||OF.contract.includes(r.contractNo))&&(!OF.wbs.length||(r.wbsList||[]).some(w=>OF.wbs.includes(w))));
-  if(S.ui.ovWindow){ const ps=periodList(); rows.forEach(r=>{ r.actuals=ps.reduce((s,p)=>s+actualsInPeriod(r.lineIds||[],p),0); }); }
+  if(S.ui.ovWindow){ const ps=fyPeriods(); rows.forEach(r=>{ r.actuals=ps.reduce((s,p)=>s+actualsInPeriod(r.lineIds||[],p),0); }); }
   if(view.filter){ const q=view.filter.toLowerCase();
     rows=rows.filter(r=>[r.what,r.supplier,r.contractNo,r.poNo,r.notes].join(' ').toLowerCase().includes(q)); }
   const groups={};
@@ -1217,7 +1231,8 @@ function renderBudgetLines(){
   };
   const sums=list=>{ const t={orig:0,vars:0,current:0,actuals:0,remaining:0};
     list.forEach(r=>{t.orig+=r.orig;t.vars+=r.vars;t.current+=r.current;t.actuals+=r.actuals;t.remaining+=r.remaining;}); return t; };
-  const sumRow=(t,label,cls)=>`<tr class="${cls}"><td colspan="${Math.max(1,cols.findIndex(c=>c.num)===-1?cols.length:cols.findIndex(c=>c.num))}">${esc(label)}</td>${cols.filter((c,i)=>i>=cols.findIndex(x=>x.num)&&cols.findIndex(x=>x.num)>-1).map(c=>c.num?`<td class="num nowrap">${money(t[c.k]||0)}</td>`:'<td></td>').join('')}<td></td></tr>`;
+  const sumRow=(t,label,cls)=>{ let fn=cols.findIndex(c=>c.num); if(fn<0) fn=cols.length; const L=Math.max(1,fn); // label spans the leading columns; one cell per remaining column keeps the row aligned
+    return `<tr class="${cls}"><td colspan="${L}">${esc(label)}</td>${cols.slice(L).map(c=>c.num?`<td class="num nowrap">${money(t[c.k]||0)}</td>`:'<td></td>').join('')}<td></td></tr>`; };
 
   let body='';
   for(const [k,list] of Object.entries(groups)){
@@ -1302,6 +1317,9 @@ const uniq=a=>[...new Set(a.filter(x=>x!=null&&x!==''))].sort((x,y)=>String(x).l
 const supplierOptions=()=>uniq([...S.contracts.map(c=>c.supplier),...S.pos.filter(p=>!p.contractId).map(p=>p.supplier)]);
 const contractNoOptions=()=>uniq(S.contracts.map(c=>c.contractNumber));
 const wbsOptions=()=>uniq(S.poLines.map(l=>l.wbs));
+/* drop filter values whose option no longer exists (renamed/deleted) so the button and the rows can't disagree */
+function sanitizeFilters(F){ if(!F) return; const sup=supplierOptions(),con=contractNoOptions(),wbs=wbsOptions();
+  F.supplier=(F.supplier||[]).filter(v=>sup.includes(v)); F.contract=(F.contract||[]).filter(v=>con.includes(v)); F.wbs=(F.wbs||[]).filter(v=>wbs.includes(v)); }
 function filterSelect(id,label,value,options){ return `<select data-fsel="${id}" title="Filter by ${label}"><option value="">${label}: all</option>${options.map(o=>`<option value="${esc(o)}" ${value===o?'selected':''}>${esc(o)}</option>`).join('')}</select>`; }
 /* ---- Excel-style multi-select tick-box filter (scope: 'ov' | 'struct' | 'fc'; field: supplier|contract|wbs) ---- */
 function msFilter(scope,field,label,options,selected){
@@ -1347,7 +1365,7 @@ function renderStructure(){
   const viewId=S.ui.structView||'active';
   const custom=byId(S.structViews,viewId);
   const mode=structModeOf(viewId);
-  const F=S.ui.structF;
+  sanitizeFilters(S.ui.structF); const F=S.ui.structF;
   $('#budget-tools').innerHTML=`
     <select data-act="none" id="structViewSel" title="View">
       ${STRUCT_TEMPLATES.map(t=>`<option value="${t.id}" ${viewId===t.id?'selected':''}>${esc(t.name)}</option>`).join('')}
@@ -1602,6 +1620,11 @@ function periodList(){ const cfg=S.fcCfg; const out=[];
   }
   return out;
 }
+function fyPeriods(){ // exactly one financial year (4 quarters) from fcCfg.start — used by the Overview "in FY" scope
+  let [y,m]=(S.fcCfg.start||currentMonthKey()).split('-').map(Number); m=m-((m-1)%3); const out=[];
+  for(let i=0;i<4;i++){ out.push({key:`${y}-Q${Math.floor((m-1)/3)+1}`,from:new Date(y,m-1,1),to:new Date(y,m-1+3,0)}); m+=3; while(m>12){m-=12;y++;} }
+  return out;
+}
 const dateInPeriod=(ds,p)=>{ if(!ds) return false; const d=new Date(ds+'T00:00'); return d>=p.from&&d<=p.to; };
 const actualsInPeriod=(lineIds,p)=>S.invoices.filter(i=>lineIds.includes(i.poLineId)&&dateInPeriod(i.date,p)).reduce((s,i)=>s+parseNum(i.value),0);
 const fcEntry=(ref,key)=>S.forecast[ref+'|'+key];
@@ -1667,7 +1690,7 @@ function fcCellHTML(ref,current,actuals,p,extra){
 function renderForecast(){
   const cfg=S.fcCfg, ps=periodList();
   const activeFcView=byId(S.fcViews,S.ui.fcView);
-  const F=S.ui.fcF;
+  sanitizeFilters(S.ui.fcF); const F=S.ui.fcF;
   $('#budget-tools').innerHTML=`
     <span class="small muted nowrap">Quarterly (FY Jul–Jun)</span>
     <select data-act="none" id="fcFY" title="Financial year (Jul–Jun)">
@@ -1936,6 +1959,7 @@ function tasksCompleted(ds){ const out=[]; walkTasks(t=>{ if(t.completed===ds&&s
 function taskDonePill(t){ return `<div class="ev task done" data-goto="task:${t.id}" title="Completed: ${esc(t.name)}"><span>✓</span><span class="t">${esc(t.name)}</span></div>`; }
 
 function renderCalendar(v){
+  if(S.ui.calF) S.ui.calF.organiser=(S.ui.calF.organiser||[]).filter(o=>organiserOptions().includes(o)); // drop stale organiser filters
   const mode=S.ui.calMode||'month', d=calDate();
   const monthName=d.toLocaleDateString('en-NZ',{month:'long',year:'numeric'});
   const weekStart=new Date(d); weekStart.setDate(d.getDate()-((d.getDay()+6)%7)); // Monday
@@ -2004,14 +2028,16 @@ function renderDay(d){ const ds=iso(d);
     ${!evs.length&&!tks.length&&!done.length?'<div class="empty">Nothing on this day.<br><br><button class="btn primary" data-act="eventModal" data-date="'+ds+'">+ Add event</button></div>':''}
   </div></div>`;
 }
-ACTIONS.calNav=t=>{ const d=calDate(); const dir=Number(t.dataset.dir); const mode=S.ui.calMode;
+// in the read-only overview, update UI state but don't persist it to the last-open programme
+function uiPersist(){ if(!OVERVIEW) save(); render(); }
+ACTIONS.calNav=t=>{ const d=calDate(); const dir=Number(t.dataset.dir); const mode=OVERVIEW?'month':S.ui.calMode; // overview is always a month grid
   if(mode==='month') d.setMonth(d.getMonth()+dir); else if(mode==='week') d.setDate(d.getDate()+7*dir); else d.setDate(d.getDate()+dir);
-  S.ui.calDate=iso(d); save(); render(); };
-ACTIONS.calToday=()=>{ S.ui.calDate=todayStr(); save(); render(); };
-ACTIONS.calMode=t=>{ S.ui.calMode=t.dataset.mode; save(); render(); };
-ACTIONS.calGotoDay=t=>{ S.ui.calDate=t.dataset.date; S.ui.calMode='day'; save(); render(); };
-ACTIONS.calToggleTasks=()=>{ S.ui.calShowTasks=!S.ui.calShowTasks; save(); render(); };
-ACTIONS.calToggleDone=()=>{ S.ui.calShowDone=!S.ui.calShowDone; save(); render(); };
+  S.ui.calDate=iso(d); uiPersist(); };
+ACTIONS.calToday=()=>{ S.ui.calDate=todayStr(); uiPersist(); };
+ACTIONS.calMode=t=>{ S.ui.calMode=t.dataset.mode; uiPersist(); };
+ACTIONS.calGotoDay=t=>{ if(OVERVIEW) return; S.ui.calDate=t.dataset.date; S.ui.calMode='day'; save(); render(); };
+ACTIONS.calToggleTasks=()=>{ S.ui.calShowTasks=!S.ui.calShowTasks; uiPersist(); };
+ACTIONS.calToggleDone=()=>{ S.ui.calShowDone=!S.ui.calShowDone; uiPersist(); };
 ACTIONS.toggleTagFilter=t=>{ const id=t.dataset.id; let f=S.ui.tagFilter||[];
   if(!f.length) f=[id]; else if(f.includes(id)){ f=f.filter(x=>x!==id); } else f.push(id);
   if(f.length===S.settings.eventTags.length) f=[];
@@ -2047,7 +2073,8 @@ function openEventModal(id,presetDate){ const e=id?byId(S.events,id):null;
 }
 function drawEvLinks(){ const el=$('#evlinks'); if(el) el.innerHTML=evLinks.map(l=>chipHTML(l,'ev')).join(' ')||'<span class="muted small">None</span>'; }
 ACTIONS.eventModal=t=>openEventModal(t&&t.dataset.id,t&&t.dataset.date);
-ACTIONS.evAddLink=()=>{ const keep=collectEventForm(); linkPicker(ref=>{ if(!evLinks.includes(ref)) evLinks.push(ref); openEventModal(keep.id,keep.date); restoreEventForm(keep); }); };
+ACTIONS.evAddLink=()=>{ const keep=collectEventForm(); const current=[...evLinks];
+  linkPicker(ref=>{ if(!current.includes(ref)) current.push(ref); openEventModal(keep.id,keep.date); restoreEventForm(keep); evLinks=current; drawEvLinks(); }); };
 function collectEventForm(){ const f=$('#evform'); if(!f) return {};
   return {id:f.id?f.id.value:'',title:f.title.value,date:f.date.value,time:f.time.value,endDate:f.endDate.value,organiser:f.organiser.value,notes:f.notes.value,
     tags:[...f.querySelectorAll('input[name=tag]:checked')].map(i=>i.value)}; }
@@ -2097,6 +2124,7 @@ function renderTasks(v){
   ${week?renderWeekView():`<div class="card"><div class="card-b task-tree" id="ttree">${S.tasks.length?taskListHTML(S.tasks,hide,0):'<div class="empty">No tasks yet. Add one — Enter for the next, Tab to nest. Use + Header to group by programme or workstream.</div>'}</div></div>`}
   <div class="small muted" style="margin-top:8px">Enter = new task below · Tab / Shift-Tab = nest / un-nest · click the state pill to cycle, the flag to set priority · tasks appear on the calendar by due date and completion date.</div>`;
   $('#showDone').onchange=e=>{ S.ui.hideDone=!e.target.checked; save(); render(); };
+  ownerDatalist(); // build the owner autocomplete now, not only after focusing a task
 }
 function collectTasks(){ const out=[]; walkTasks(t=>{ if(t.type!=='header') out.push(t); }); return out; }
 function countOpenTasks(){ let n=0; collectTasks().forEach(t=>{ if(!stateOf(t.stateId).done) n++; }); return n; }
@@ -2210,8 +2238,10 @@ window.toggleTaskTag=(id,tag,on)=>{ const r=findTask(id); if(!r) return; r.t.tag
   if(on){ if(!r.t.tagIds.includes(tag)) r.t.tagIds.push(tag); } else r.t.tagIds=r.t.tagIds.filter(x=>x!==tag);
   touch(r.t); save(); render(); };
 ACTIONS.delTask=el=>{ const r=findTask(el.dataset.id); if(!r) return;
-  const n=(r.t.children||[]).length; if((r.t.name||n)&&!confirm('Delete this '+(r.t.type==='header'?'header':'task')+(n?' and its '+n+' item(s)':'')+'? You can restore it from Trash.')) return;
-  if(r.t.name||n) trashPush(r.t.type==='header'?'Header':'Task',r.t.name||'(untitled)',{task:deepCopy(r.t),parentId:r.parent?r.parent.id:null,index:r.idx});
+  const n=(r.t.children||[]).length; // worth confirming/trashing if it holds any content (name, due, notes, owner, tags, links) or has children
+  const worth=(r.t.type==='header')?!!(r.t.name||n):(!isEmptyTask(r.t)||n);
+  if(worth&&!confirm('Delete this '+(r.t.type==='header'?'header':'task')+(n?' and its '+n+' item(s)':'')+'? You can restore it from Trash.')) return;
+  if(worth) trashPush(r.t.type==='header'?'Header':'Task',r.t.name||'(untitled)',{task:deepCopy(r.t),parentId:r.parent?r.parent.id:null,index:r.idx});
   r.list.splice(r.idx,1); save(); render(); };
 ACTIONS.indentTask=el=>{ const r=findTask(el.dataset.id); if(!r||r.idx===0) return toast('Nothing above to nest under');
   const prev=r.list[r.idx-1]; r.list.splice(r.idx,1); prev.children=prev.children||[]; prev.children.push(r.t); prev.collapsed=false; save(); render(); focusTask(r.t.id); };
@@ -2547,7 +2577,9 @@ document.addEventListener('change',e=>{
   const gs=e.target.closest&&e.target.closest('select[data-grid]'); if(!gs) return;
   const r=findBlock(gs.dataset.grid); if(!r) return; const row=r.b.rows[+gs.dataset.ri]; if(!row) return;
   row[gs.dataset.ck]=gs.value;
-  (r.b.columns||[]).forEach(c=>{ if(c.dep===gs.dataset.ck) row[c.key]=''; }); // clear now-invalid children
+  // clear now-invalid dependents transitively (child, grandchild, …)
+  const cleared=new Set([gs.dataset.ck]); let more=true;
+  while(more){ more=false; (r.b.columns||[]).forEach(c=>{ if(c.dep&&cleared.has(c.dep)&&!cleared.has(c.key)){ row[c.key]=''; cleared.add(c.key); more=true; } }); }
   save(); render();
 });
 ACTIONS.gridAddRow=t=>{ const r=findBlock(t.dataset.id); if(!r) return; const row={}; (r.b.columns||[]).forEach(c=>row[c.key]=''); r.b.rows.push(row); save(); render(); };
@@ -2565,9 +2597,10 @@ document.addEventListener('keydown',e=>{
     const nb=newBlock(r.b.type==='bullet'?'bullet':'p');
     r.list.splice(r.idx+1,0,nb); save(); render(); focusBlock(nb.id); }
   else if(e.key==='Backspace'&&bc.textContent.trim()===''&&!bc.querySelector('.chip')){
-    if(r.list.length>1||r.parent){ e.preventDefault(); hideSlash();
-      const prev=r.list[r.idx-1]; r.list.splice(r.idx,1); save(); render();
-      if(prev&&prev.html!==undefined) focusBlock(prev.id,true); } }
+    if(r.idx>0||r.parent){ e.preventDefault(); hideSlash(); // don't delete the very first top-level block (nothing to fall back to)
+      const prev=r.idx>0?r.list[r.idx-1]:(r.parent||null);
+      r.list.splice(r.idx,1); save(); render();
+      if(prev&&prev.id) focusBlock(prev.id,true); } }
   else if(e.key==='Escape') hideSlash();
 });
 /* slash menu */
@@ -2617,11 +2650,11 @@ function buildDataCSV(){ // current data in the import schema — edit in Excel 
     posOfContract(c.id).forEach(emitPO);
   });
   standalonePOs().forEach(emitPO);
-  if(!S.contracts.length&&!S.pos.length){ // seed examples for an empty programme
-    lines.push('contract,Henderson Civil,S-1001,C-2026-01,150000,Hub construction,Henderson,2026-07-01,2027-06-30,,,,,,,,,,,,,Example contract');
-    lines.push('po,,,C-2026-01,,,,,PO-7788,Hub construction works,,,,,,,,,,,,');
-    lines.push('line,,,,,,,,PO-7788,,10,Civil works,WBS-100,CAPEX,6100,100000,,,,,');
-    lines.push('invoice,,,,,,,,PO-7788,,10,,,,,,INV-001,25000,2026-07-10,Site prep,First claim');
+  if(!S.contracts.length&&!S.pos.length){ // seed examples for an empty programme (built via csvRow so columns always align)
+    lines.push(csvRow({type:'contract',supplier:'Henderson Civil',supplier_number:'S-1001',contract_number:'C-2026-01',contract_value:150000,what:'Hub construction',start_date:'2026-07-01',end_date:'2027-06-30',notes:'Example contract'}));
+    lines.push(csvRow({type:'po',contract_number:'C-2026-01',po_number:'PO-7788',po_description:'Hub construction works'}));
+    lines.push(csvRow({type:'line',po_number:'PO-7788',line_number:10,line_description:'Civil works',wbs:'WBS-100',spend_code:'CAPEX',gl_code:6100,line_value:100000}));
+    lines.push(csvRow({type:'invoice',po_number:'PO-7788',line_number:10,invoice_number:'INV-001',invoice_value:25000,invoice_date:'2026-07-10',invoice_for:'Site prep',notes:'First claim'}));
   }
   return lines.join('\n');
 }
@@ -2897,10 +2930,10 @@ ACTIONS.saveJSON=async()=>{
       let h=await fileHandleFor(lsKey);
       if(!h){ h=await showSaveFilePicker({suggestedName:name,types:[{description:'Programme file',accept:{'application/json':['.json']}}]}); await idbSet(lsKey,h); }
       const w=await h.createWritable(); await w.write(content); await w.close();
-      refreshFileLabel(); toast('Saved to '+h.name); save(); return;
-    }catch(e){ if(e&&e.name==='AbortError') return; }
+      refreshFileLabel(); toast('Saved to '+h.name); save(); return true;
+    }catch(e){ if(e&&e.name==='AbortError') return false; }
   }
-  download(name,content,'application/json'); toast('Programme file downloaded');
+  download(name,content,'application/json'); toast('Programme file downloaded'); return true;
 };
 ACTIONS.fileInfo=async()=>{ if(!window.showSaveFilePicker) return ACTIONS.saveJSON();
   const h=await idbGet(lsKey);
@@ -2917,9 +2950,18 @@ ACTIONS.fileInfo=async()=>{ if(!window.showSaveFilePicker) return ACTIONS.saveJS
     <button class="btn primary" data-act="saveFromInfo">${h?'Save':'Save to a file…'}</button></div>`); };
 ACTIONS.saveFromInfo=()=>{ closeModal(); ACTIONS.saveJSON(); };
 window.toggleAutosaveFile=async el=>{ S.programme.autosaveFile=el.checked; save();
-  if(el.checked){ const h=await fileHandleFor(lsKey); if(!h){ closeModal(); await ACTIONS.saveJSON(); } else { writeBoundFile(); toast('Auto-save to file on'); } }
+  if(el.checked){ let h=await fileHandleFor(lsKey);
+    if(!h){ closeModal(); const ok=await ACTIONS.saveJSON(); h=await fileHandleFor(lsKey);
+      if(!ok||!h){ S.programme.autosaveFile=false; save(); toast('Auto-save needs a file — cancelled'); return; } }
+    else writeBoundFile();
+    toast('Auto-save to file on'); }
   else toast('Auto-save to file off'); };
-ACTIONS.relinkFile=async()=>{ await idbDel(lsKey); closeModal(); ACTIONS.saveJSON(); };
+ACTIONS.relinkFile=async()=>{ // Save As — pick a NEW file, write it, then rebind; keep the current file if the picker is cancelled
+  if(!window.showSaveFilePicker){ closeModal(); return ACTIONS.saveJSON(); }
+  try{ const h=await showSaveFilePicker({suggestedName:slug(S.programme.name)+'.programme.json',types:[{description:'Programme file',accept:{'application/json':['.json']}}]});
+    const w=await h.createWritable(); await w.write(JSON.stringify(S,null,1)); await w.close();
+    await idbSet(lsKey,h); refreshFileLabel(); closeModal(); toast('Saved to '+h.name);
+  }catch(e){ if(e&&e.name==='AbortError') return; } };
 ACTIONS.openJSON=async()=>{
   if(window.showOpenFilePicker){
     try{ const [h]=await showOpenFilePicker({types:[{description:'Programme file',accept:{'application/json':['.json']}}]});
