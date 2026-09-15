@@ -128,7 +128,7 @@ tr.fc-planned>td{background:#f4f1fa}
 .chip .ic{opacity:.65;font-size:11px}
 .pill{display:inline-flex;align-items:center;gap:5px;border-radius:99px;padding:2px 10px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid transparent;white-space:nowrap}
 .pillsel{border-radius:99px;padding:2px 6px 2px 10px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid transparent;white-space:nowrap;-webkit-appearance:none;appearance:none;font-family:inherit}
-#progSwitch{margin-left:8px;font:inherit;font-size:12px;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:7px;padding:2px 4px;max-width:210px;cursor:pointer}
+#progSwitch{margin-left:8px;font:inherit;font-size:12px;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:7px;padding:2px 4px;max-width:280px;cursor:pointer}
 .filewrap{position:relative}
 #fileStatus{white-space:nowrap;max-width:230px;overflow:hidden;text-overflow:ellipsis;border:1px solid var(--line);font-weight:600}
 #fileStatus.fs-ok{background:var(--good-soft);color:var(--good);border-color:transparent}
@@ -483,9 +483,14 @@ function allProgrammes(){ if(OVERVIEW&&ovCache) return ovCache; // cache while t
   const list=listLocal().map(p=>{ try{ return {key:p.key,name:p.name,st:migrate(JSON.parse(localStorage.getItem(p.key)))}; }catch(e){ return null; } }).filter(Boolean);
   if(OVERVIEW) ovCache=list; return list; }
 function withState(st,fn){ const prev=S; S=st; try{ return fn(); } finally{ S=prev; } } // run read-only compute against another programme's state
-function updateProgSwitch(){ const sel=$('#progSwitch'); if(!sel) return; const list=listLocal();
+async function progFiles(list){ const out={}; if(!window.showSaveFilePicker) return out; // {key: filename} for programmes linked to a file
+  for(const p of (list||listLocal())){ try{ const h=await idbGet(p.key); if(h) out[p.key]=h.name; }catch(e){} } return out; }
+async function updateProgSwitch(){ const sel=$('#progSwitch'); if(!sel) return; const list=listLocal();
+  const files=await progFiles(list);
   sel.innerHTML=`<option value="__ov" ${OVERVIEW?'selected':''}>★ All programmes (overview)</option>`
-    +list.map(p=>`<option value="${esc(p.key)}" ${!OVERVIEW&&p.key===lsKey?'selected':''}>${esc(p.name)}</option>`).join('')
+    +list.map(p=>{ const f=files[p.key]; const where=window.showSaveFilePicker?(f?' — '+f:' — browser only'):'';
+        return `<option value="${esc(p.key)}" ${!OVERVIEW&&p.key===lsKey?'selected':''}>${esc(p.name)}${esc(where)}</option>`; }).join('')
+    +`<option value="__manage">🗂 Manage programmes &amp; files…</option>`
     +`<option value="__new">＋ New programme…</option>`; }
 function newProgrammePrompt(){
   modal(`<div class="m-h"><h3>New programme</h3></div><div class="m-b">
@@ -504,10 +509,11 @@ function boot(){
   const last=localStorage.getItem('progapp:last');
   if(last&&localStorage.getItem(last)){ openKey(last); } else { showStart(); }
 }
-function showStart(){
-  const ex=listLocal();
+async function showStart(){
+  const ex=listLocal(); const files=await progFiles(ex);
   $('#startExisting').innerHTML= ex.length? '<div class="small muted" style="margin-bottom:6px">Programmes on this computer</div>'+
-    ex.map(p=>`<button data-act="openKey" data-key="${esc(p.key)}"><span>${esc(p.name)}</span><span class="muted small">${p.modified?new Date(p.modified).toLocaleDateString('en-NZ'):''}</span></button>`).join('') : '';
+    ex.map(p=>{ const f=files[p.key]; const where=f?('📄 '+esc(f)):'browser only'; const d=p.modified?new Date(p.modified).toLocaleDateString('en-NZ'):'';
+      return `<button data-act="openKey" data-key="${esc(p.key)}"><span>${esc(p.name)}</span><span class="muted small">${where}${d?' · '+d:''}</span></button>`; }).join('') : '';
   $('#start').classList.add('show');
 }
 function openKey(key){
@@ -911,7 +917,11 @@ document.addEventListener('submit',e=>{
 });
 $('#progName').addEventListener('blur',()=>{ S.programme.name=$('#progName').textContent.trim()||S.programme.name; $('#progName').textContent=S.programme.name; document.title=S.programme.name+' — Programme Manager'; save(); });
 $('#progName').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();e.target.blur();} });
-$('#progSwitch').addEventListener('change',e=>{ const v=e.target.value; if(v==='__ov') enterOverview(); else if(v==='__new'){ updateProgSwitch(); newProgrammePrompt(); } else if(v) openKey(v); });
+$('#progSwitch').addEventListener('change',e=>{ const v=e.target.value;
+  if(v==='__ov') enterOverview();
+  else if(v==='__new'){ updateProgSwitch(); newProgrammePrompt(); }
+  else if(v==='__manage'){ updateProgSwitch(); ACTIONS.manageProgrammes(); }
+  else if(v) openKey(v); });
 
 /* data-bind="collection.id.field" (collections) or "path.field" for S.programme etc */
 function handleBind(el){
@@ -3004,6 +3014,36 @@ ACTIONS.openJSON=async()=>{
   }
   $('#filein').click();
 };
+/* ---- manage all programmes and see, at a glance, where each is saved ---- */
+async function saveProgrammeToFile(key){ if(!window.showSaveFilePicker) return false;
+  let data=localStorage.getItem(key); if(!data) return false;
+  try{ const obj=JSON.parse(data); if(obj&&obj.programme){ obj.programme.autosaveFile=true; data=JSON.stringify(obj,null,1); localStorage.setItem(key,data); if(key===lsKey&&S) S.programme.autosaveFile=true; } }catch(e){}
+  try{ let h=await idbGet(key);
+    if(!h){ let nm='programme.json'; try{ nm=slug(JSON.parse(data).programme.name)+'.programme.json'; }catch(e){}
+      h=await showSaveFilePicker({suggestedName:nm,types:[{description:'Programme file',accept:{'application/json':['.json']}}]}); await idbSet(key,h); }
+    const w=await h.createWritable(); await w.write(data); await w.close(); toast('Saved to '+h.name);
+    if(key===lsKey) markFileSaved(h.name);
+    return true;
+  }catch(e){ if(e&&e.name==='AbortError') return false; return false; } }
+ACTIONS.manageProgrammes=async()=>{ const list=listLocal(); const files=await progFiles(list); const canFile=!!window.showSaveFilePicker;
+  const rows=list.map(p=>{ const isCur=p.key===lsKey&&!OVERVIEW; const f=files[p.key];
+    return `<tr ${isCur?'style="background:var(--surface-2)"':''}>
+      <td><b>${esc(p.name)}</b>${isCur?' <span class="badge ok">current</span>':''}</td>
+      <td>${f?('📄 '+esc(f)):'<span class="badge warn" title="Lives only in this browser">browser only</span>'}</td>
+      <td class="small muted nowrap">${p.modified?new Date(p.modified).toLocaleDateString('en-NZ'):''}</td>
+      <td class="nowrap" style="text-align:right">
+        ${isCur?'<span class="muted small">open</span>':`<button class="btn sm" data-act="mgOpen" data-key="${esc(p.key)}">Open</button>`}
+        ${canFile?`<button class="btn sm" data-act="mgSaveFile" data-key="${esc(p.key)}">${f?'Save now':'Save to a file…'}</button>`:''}
+      </td></tr>`; }).join('');
+  modal(`<div class="m-h"><h3>Programmes &amp; where they’re saved</h3></div><div class="m-b">
+    <div class="small muted" style="margin-bottom:10px">Every programme is kept in this browser. Give one a <b>file</b> to have a portable, backup-able copy you own${canFile?'':' (use Chrome or Edge to link a file — this browser can only download copies)'}. “Browser only” means it lives here and nowhere else.</div>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th>Programme</th><th>Saved to</th><th>Changed</th><th></th></tr></thead>
+    <tbody>${rows||'<tr><td colspan="4"><div class="empty">No programmes yet</div></td></tr>'}</tbody></table></div>
+  </div><div class="m-f"><button class="btn primary" data-act="closeModal">Done</button></div>`); };
+ACTIONS.mgOpen=t=>{ closeModal(); openKey(t.dataset.key); };
+ACTIONS.mgSaveFile=async t=>{ const key=t.dataset.key;
+  const ok=await saveProgrammeToFile(key);
+  if(ok){ updateProgSwitch(); ACTIONS.manageProgrammes(); } };
 $('#filein').addEventListener('change',async e=>{
   const f=e.target.files[0]; if(!f) return;
   try{ importState(JSON.parse(await f.text())); }catch(err){ toast('Could not read that file'); }

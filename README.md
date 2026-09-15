@@ -8,9 +8,10 @@ A single-file, locally hosted budgeting and programme management app — a "Noti
       i. Data autosaves to the browser as you type (see the "Saved" stamp in the header).
       ii. Every programme created on this computer is listed on the start screen.
       iii. A "Welcome & guide" page is created as the first Notes page of every programme — a friendly, in-app version of this README. Delete it whenever you like (it behaves like any other Notes page).
-      iv. Switch or combine programmes from the dropdown beside the programme name: pick another programme to jump to it, pick "All programmes (overview)" for a read-only, unified roll-up, or pick "＋ New programme…" to create a fresh one.
+      iv. Switch or combine programmes from the dropdown beside the programme name: pick another programme to jump to it, pick "All programmes (overview)" for a read-only, unified roll-up, or pick "＋ New programme…" to create a fresh one. Each programme in the list is tagged with where it saves — its file name, or "browser only" if it has no file yet.
          1. The overview gives one budget across every programme (per-programme subtotals plus a grand total), one calendar showing every programme's events and due/completed actions, and one action list grouped under each programme's name.
          2. Switch back to any single programme to edit it.
+      v. "🗂 Manage programmes & files…" (in the same dropdown) opens a table of every programme showing where each is saved (file name or "browser only"), when it last changed, and buttons to open it or save it to a file — so you can see and fix, at a glance, which programmes are on a real file versus only in the browser. The start screen shows the same tag beside each programme.
    c. How saving works — two copies are always kept: this browser (automatic) and a file on your computer (the one you own and can back up).
       i. This browser: everything autosaves automatically as you type. It stays on this computer, in this browser only — clearing site data or using another browser/computer won't have it. Convenient, but not something to rely on as your only copy.
       ii. A file on your computer: a portable `.programme.json`. Back it up, move it, email it, or drop it (or the 📝 Markdown snapshot) into an AI model.
