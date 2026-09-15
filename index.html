@@ -129,8 +129,15 @@ tr.fc-planned>td{background:#f4f1fa}
 .pill{display:inline-flex;align-items:center;gap:5px;border-radius:99px;padding:2px 10px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid transparent;white-space:nowrap}
 .pillsel{border-radius:99px;padding:2px 6px 2px 10px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid transparent;white-space:nowrap;-webkit-appearance:none;appearance:none;font-family:inherit}
 #progSwitch{margin-left:8px;font:inherit;font-size:12px;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:7px;padding:2px 4px;max-width:210px;cursor:pointer}
-#fileLabel{white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
-#fileLabel.warnlabel{color:var(--warn);border-color:var(--warn)}
+.filewrap{position:relative}
+#fileStatus{white-space:nowrap;max-width:230px;overflow:hidden;text-overflow:ellipsis;border:1px solid var(--line);font-weight:600}
+#fileStatus.fs-ok{background:var(--good-soft);color:var(--good);border-color:transparent}
+#fileStatus.fs-warn,#fileStatus.fs-dirty{background:var(--warn-soft);color:var(--warn);border-color:var(--warn)}
+.filemenu{position:absolute;top:calc(100% + 5px);right:0;z-index:70;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:6px;min-width:250px}
+.filemenu .fm-head{font-size:12px;color:var(--ink-2);padding:5px 8px 7px}
+.filemenu .fm-item{display:flex;gap:9px;align-items:center;width:100%;border:0;background:none;text-align:left;padding:8px;border-radius:7px;cursor:pointer;font:inherit;font-size:13px;color:var(--ink)}
+.filemenu .fm-item:hover{background:var(--sel)}
+.filemenu .fm-note{font-size:11px;color:var(--ink-3);padding:7px 8px 2px;border-top:1px solid var(--line-2);margin-top:4px;line-height:1.45}
 .msf{position:relative;display:inline-block}
 .msf-pop{position:absolute;top:calc(100% + 3px);left:0;z-index:60;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);padding:6px;min-width:190px}
 .msf-list{max-height:220px;overflow:auto;margin-top:2px}
@@ -313,7 +320,7 @@ input[type=color]{padding:0;width:34px;height:28px;border-radius:6px;cursor:poin
 </head>
 <body>
 <header>
-  <div class="brand"><span class="mark">M</span><span id="progName" contenteditable="true" spellcheck="false"></span><select id="progSwitch" title="Switch programme, or see all together"></select><button id="fileLabel" class="btn sm ghost" data-act="fileInfo" title="Where this programme saves"></button></div>
+  <div class="brand"><span class="mark">M</span><span id="progName" contenteditable="true" spellcheck="false"></span><select id="progSwitch" title="Switch programme, or see all together"></select></div>
   <nav class="tabs" id="tabs">
     <button data-tab="budget">Budget</button>
     <button data-tab="calendar">Calendar</button>
@@ -322,9 +329,10 @@ input[type=color]{padding:0;width:34px;height:28px;border-radius:6px;cursor:poin
   </nav>
   <div class="hd-actions">
     <span class="stamp" id="stamp"></span>
-    <button class="btn sm" data-act="saveJSON" title="Save this programme to its file (Ctrl/Cmd-S) — first save asks where">💾 Save</button>
-    <button class="btn sm" data-act="relinkFile" title="Save As — choose a new name or folder (use this to move the file)">💾 Save As…</button>
-    <button class="btn sm" data-act="openJSON" title="Open a programme file from your computer">📂 Open</button>
+    <div class="filewrap">
+      <button id="fileStatus" class="btn sm" data-act="fileMenu" title="Where this programme is saved"></button>
+      <div id="filemenu" class="filemenu" hidden></div>
+    </div>
     <button class="btn sm" data-act="importCSV" title="Export (Excel / Markdown / JSON) and bulk import">📥 Data</button>
     <button class="btn sm ghost" data-act="trash" title="Recently deleted — restore items">🗑<span id="trashCount"></span></button>
     <button class="btn sm ghost" data-act="settings" title="Settings">⚙</button>
@@ -425,9 +433,10 @@ function save(){ if(!S) return; S.programme.modified=new Date().toISOString();
   let str; try{ str=JSON.stringify(S); }catch(e){ console.warn(e); return; }
   const stamp=$('#stamp');
   try{ localStorage.setItem(lsKey,str); storageWarned=false;
-    if(stamp){ stamp.textContent='Saved '+new Date().toLocaleTimeString('en-NZ',{hour:'2-digit',minute:'2-digit'}); stamp.classList.remove('savefail'); }
+    lastSavedTime='browser saved '+new Date().toLocaleTimeString('en-NZ',{hour:'2-digit',minute:'2-digit'});
+    if(stamp){ stamp.textContent=''; stamp.classList.remove('savefail'); } // stamp is only used for failures now; file status lives in the pill
   }catch(e){ console.warn(e); onSaveFailed(); }
-  noteChange(); scheduleFileAutosave();
+  markFileDirty(); noteChange(); scheduleFileAutosave();
 }
 function onSaveFailed(){ const stamp=$('#stamp'); if(stamp){ stamp.textContent='⚠ NOT saved — storage full'; stamp.classList.add('savefail'); }
   if(storageWarned) return; storageWarned=true;
@@ -457,8 +466,9 @@ function doRedo(){ if(OVERVIEW||!redoStack.length) return; const s=redoStack.pop
 let fileAutosaveTimer=null;
 function scheduleFileAutosave(){ if(!S||!S.programme.autosaveFile||!window.showSaveFilePicker) return;
   clearTimeout(fileAutosaveTimer); fileAutosaveTimer=setTimeout(writeBoundFile,1500); }
-async function writeBoundFile(){ if(!S||!S.programme.autosaveFile) return; const h=await fileHandleFor(lsKey); if(!h) return;
-  try{ const w=await h.createWritable(); await w.write(JSON.stringify(S,null,1)); await w.close(); refreshFileLabel(); }catch(e){} }
+async function writeBoundFile(){ if(!S||!S.programme.autosaveFile) return; const h=await fileHandleFor(lsKey);
+  if(!h){ fileNeedsPerm=true; updateFileStatus(); return; } // permission lapsed (e.g. after a reload) — show Reconnect
+  try{ const w=await h.createWritable(); await w.write(JSON.stringify(S,null,1)); await w.close(); markFileSaved(h.name); }catch(e){} }
 function flushFileAutosave(){ clearTimeout(fileAutosaveTimer); // best-effort final write of the OUTGOING programme before a switch (snapshots so a later S/lsKey change can't misdirect it)
   if(!(S&&S.programme&&S.programme.autosaveFile)) return; const st=JSON.stringify(S), key=lsKey;
   fileHandleFor(key).then(h=>{ if(!h) return; h.createWritable().then(w=>w.write(st).then(()=>w.close())).catch(()=>{}); }).catch(()=>{}); }
@@ -2917,55 +2927,79 @@ async function fileHandleFor(key){ const h=await idbGet(key); if(!h) return null
     if(p!=='granted'&&h.requestPermission) p=await h.requestPermission({mode:'readwrite'});
     if(p!=='granted') return null; } }catch(e){}
   return h; }
-async function refreshFileLabel(){ const el=$('#fileLabel'); if(!el) return;
-  if(OVERVIEW||!window.showSaveFilePicker){ el.style.display='none'; return; } el.style.display='';
-  const h=await idbGet(lsKey);
-  if(h){ el.textContent='📄 '+h.name; el.title='This programme saves to “'+h.name+'” — click for save options'; el.classList.remove('warnlabel'); }
-  else { el.textContent='📄 Not saved to a file'; el.title='This programme lives in this browser only — click to save it to a file'; el.classList.add('warnlabel'); } }
+/* ---- file status: one honest indicator of whether the FILE (not just the browser) is up to date ---- */
+let curFileName=null, fileDirty=false, fileNeedsPerm=false, lastSavedTime='';
+function fileSupported(){ return !!window.showSaveFilePicker; }
+function updateFileStatus(){ const el=$('#fileStatus'); if(!el) return;
+  if(OVERVIEW){ el.style.display='none'; return; } el.style.display='';
+  el.classList.remove('fs-ok','fs-warn','fs-dirty');
+  if(!fileSupported()){ el.textContent='💾 Download'; el.title='Save a copy of this programme to your Downloads'; return; }
+  if(!curFileName){ el.textContent='⚠ Browser only'; el.classList.add('fs-warn'); el.title='This programme is only in this browser — click to save it to a file'; return; }
+  if(fileNeedsPerm){ el.textContent='⚠ Reconnect · '+curFileName; el.classList.add('fs-warn'); el.title='Click and Save once to reconnect “'+curFileName+'” after reloading'; return; }
+  if(fileDirty){ el.textContent='● Unsaved → '+curFileName; el.classList.add('fs-dirty'); el.title='You have changes not yet written to “'+curFileName+'” — click to Save'; return; }
+  el.textContent='✓ '+(S.programme.autosaveFile?'Synced':'Saved')+' · '+curFileName; el.classList.add('fs-ok');
+  el.title=(S.programme.autosaveFile?'Keeping “'+curFileName+'” in sync automatically':'Saved to “'+curFileName+'”')+' — click for options'; }
+async function loadFileState(){ curFileName=null; fileDirty=false; fileNeedsPerm=false;
+  if(fileSupported()){ const h=await idbGet(lsKey);
+    if(h){ curFileName=h.name;
+      if(S.programme.autosaveFile&&h.queryPermission){ try{ if(await h.queryPermission({mode:'readwrite'})!=='granted') fileNeedsPerm=true; }catch(e){} } } }
+  updateFileStatus(); }
+const refreshFileLabel=loadFileState; // (kept name for existing callers)
+function markFileDirty(){ if(curFileName&&!S.programme.autosaveFile){ fileDirty=true; updateFileStatus(); } }
+function markFileSaved(name){ curFileName=name; fileDirty=false; fileNeedsPerm=false; updateFileStatus(); }
+
 ACTIONS.saveJSON=async()=>{
   const content=JSON.stringify(S,null,1);
   const name=slug(S.programme.name)+'.programme.json';
-  if(window.showSaveFilePicker){
+  if(fileSupported()){
     try{
-      let h=await fileHandleFor(lsKey);
-      if(!h){ h=await showSaveFilePicker({suggestedName:name,types:[{description:'Programme file',accept:{'application/json':['.json']}}]}); await idbSet(lsKey,h); }
+      let h=await fileHandleFor(lsKey), fresh=false;
+      if(!h){ h=await showSaveFilePicker({suggestedName:name,types:[{description:'Programme file',accept:{'application/json':['.json']}}]}); await idbSet(lsKey,h); fresh=true; }
       const w=await h.createWritable(); await w.write(content); await w.close();
-      refreshFileLabel(); toast('Saved to '+h.name); save(); return true;
+      if(fresh) S.programme.autosaveFile=true; // linking a file opts into keeping it in sync
+      markFileSaved(h.name); toast('Saved to '+h.name); save(); return true;
     }catch(e){ if(e&&e.name==='AbortError') return false; }
   }
   download(name,content,'application/json'); toast('Programme file downloaded'); return true;
 };
-ACTIONS.fileInfo=async()=>{ if(!window.showSaveFilePicker) return ACTIONS.saveJSON();
-  const h=await idbGet(lsKey);
-  modal(`<div class="m-h"><h3>Save “${esc(S.programme.name)}”</h3></div><div class="m-b">
-    <div class="small" style="line-height:1.5">
-      <p style="margin:0 0 8px">Two things are always kept for this programme:</p>
-      <p style="margin:0 0 6px">🖥️ <b>This browser</b> — everything autosaves here automatically as you type (the “Saved” time, top-right). It stays on this computer, in this browser only. Clearing site data or using another browser/computer won’t have it.</p>
-      <p style="margin:0 0 10px">📄 <b>A file on your computer</b> — a portable <code>.programme.json</code> you save with 💾 Save. Back it up, move it, email it, or drop it into an AI model. ${h?`This programme is saved to <b>${esc(h.name)}</b>.`:`This programme <b>isn’t saved to a file yet</b>.`}</p>
-      <p style="margin:0 0 10px;color:var(--ink-2)">Like Office: <b>Save</b> writes to the same file each time; <b>Save As…</b> lets you choose a new name or folder (to move it, use Save As to the new location — your computer keeps the old file, which you can delete). Each programme has its own file, so saving one never overwrites another.</p>
-      <label style="display:flex;gap:7px;align-items:flex-start"><input type="checkbox" ${S.programme.autosaveFile?'checked':''} onchange="toggleAutosaveFile(this)" style="margin-top:2px"><span>Also <b>auto-save to the file</b> as I work, so the file always mirrors the browser (writes a couple of seconds after you stop typing).${h?'':' Turning this on will ask you to choose the file first.'}</span></label>
-    </div>
-  </div><div class="m-f"><button class="btn" data-act="closeModal">Close</button>
-    <button class="btn" data-act="relinkFile">Save As / move…</button>
-    <button class="btn primary" data-act="saveFromInfo">${h?'Save':'Save to a file…'}</button></div>`); };
+/* ---- one compact menu for every file action (replaces the old Save / Save As / Open cluster) ---- */
+function hideFileMenu(){ const m=$('#filemenu'); if(m) m.hidden=true; }
+async function drawFileMenu(){ const el=$('#filemenu'); if(!el) return;
+  if(!fileSupported()){ el.innerHTML=`<div class="fm-head">This browser can’t link a file directly.</div>
+    <button class="fm-item" data-act="fmSave">💾 Download a copy</button>
+    <button class="fm-item" data-act="fmOpen">📂 Open a file…</button>
+    <div class="fm-note">Everything autosaves to this browser${lastSavedTime?' · '+lastSavedTime:''}. Use Chrome or Edge to save straight to a file you choose.</div>`; return; }
+  const linked=!!curFileName; const auto=!!S.programme.autosaveFile;
+  el.innerHTML=`<div class="fm-head">${linked?(fileNeedsPerm?`Reconnect “<b>${esc(curFileName)}</b>” — Save once`:(fileDirty?`Changes not yet in “<b>${esc(curFileName)}</b>”`:`Up to date in “<b>${esc(curFileName)}</b>”`)):'Not saved to a file yet'}</div>
+    <button class="fm-item" data-act="fmSave">💾 Save to file${linked?' now':'…'}</button>
+    <button class="fm-item" data-act="fmSaveAs">📝 Save As / move…</button>
+    <button class="fm-item" data-act="fmOpen">📂 Open a file…</button>
+    <label class="fm-item"><input type="checkbox" ${auto?'checked':''} onchange="toggleAutosaveFile(this)"> Keep file in sync automatically</label>
+    <div class="fm-note">Also autosaves to this browser${lastSavedTime?' · '+lastSavedTime:''}. The <b>file</b> is your portable, backup-able copy — the badge turns amber whenever it’s behind.</div>`; }
+ACTIONS.fileMenu=t=>{ const m=$('#filemenu'); if(!m) return; if(!m.hidden){ m.hidden=true; return; } drawFileMenu(); m.hidden=false; };
 ACTIONS.saveFromInfo=()=>{ closeModal(); ACTIONS.saveJSON(); };
+ACTIONS.fmSave=()=>{ hideFileMenu(); ACTIONS.saveJSON(); };
+ACTIONS.fmSaveAs=()=>{ hideFileMenu(); ACTIONS.relinkFile(); };
+ACTIONS.fmOpen=()=>{ hideFileMenu(); ACTIONS.openJSON(); };
+document.addEventListener('click',e=>{ if(!e.target.closest('.filewrap')){ const m=$('#filemenu'); if(m&&!m.hidden) m.hidden=true; } });
 window.toggleAutosaveFile=async el=>{ S.programme.autosaveFile=el.checked; save();
   if(el.checked){ let h=await fileHandleFor(lsKey);
-    if(!h){ closeModal(); const ok=await ACTIONS.saveJSON(); h=await fileHandleFor(lsKey);
-      if(!ok||!h){ S.programme.autosaveFile=false; save(); toast('Auto-save needs a file — cancelled'); return; } }
+    if(!h){ hideFileMenu(); const ok=await ACTIONS.saveJSON(); h=await fileHandleFor(lsKey);
+      if(!ok||!h){ S.programme.autosaveFile=false; save(); updateFileStatus(); toast('Keeping in sync needs a file — cancelled'); return; } }
     else writeBoundFile();
-    toast('Auto-save to file on'); }
-  else toast('Auto-save to file off'); };
+    toast('File will stay in sync'); }
+  else { toast('Auto-sync off — Save manually to update the file'); }
+  updateFileStatus(); drawFileMenu(); };
 ACTIONS.relinkFile=async()=>{ // Save As — pick a NEW file, write it, then rebind; keep the current file if the picker is cancelled
-  if(!window.showSaveFilePicker){ closeModal(); return ACTIONS.saveJSON(); }
+  if(!fileSupported()){ return ACTIONS.saveJSON(); }
   try{ const h=await showSaveFilePicker({suggestedName:slug(S.programme.name)+'.programme.json',types:[{description:'Programme file',accept:{'application/json':['.json']}}]});
     const w=await h.createWritable(); await w.write(JSON.stringify(S,null,1)); await w.close();
-    await idbSet(lsKey,h); refreshFileLabel(); closeModal(); toast('Saved to '+h.name);
+    await idbSet(lsKey,h); S.programme.autosaveFile=true; save(); markFileSaved(h.name); toast('Saved to '+h.name);
   }catch(e){ if(e&&e.name==='AbortError') return; } };
 ACTIONS.openJSON=async()=>{
   if(window.showOpenFilePicker){
     try{ const [h]=await showOpenFilePicker({types:[{description:'Programme file',accept:{'application/json':['.json']}}]});
-      const f=await h.getFile(); importState(JSON.parse(await f.text())); await idbSet(lsKey,h); refreshFileLabel(); return;
+      const f=await h.getFile(); importState(JSON.parse(await f.text())); await idbSet(lsKey,h); markFileSaved(h.name); return;
     }catch(e){ if(e&&e.name==='AbortError') return; }
   }
   $('#filein').click();

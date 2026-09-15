@@ -11,13 +11,18 @@ A single-file, locally hosted budgeting and programme management app — a "Noti
       iv. Switch or combine programmes from the dropdown beside the programme name: pick another programme to jump to it, pick "All programmes (overview)" for a read-only, unified roll-up, or pick "＋ New programme…" to create a fresh one.
          1. The overview gives one budget across every programme (per-programme subtotals plus a grand total), one calendar showing every programme's events and due/completed actions, and one action list grouped under each programme's name.
          2. Switch back to any single programme to edit it.
-   c. How saving works — two copies are always kept, like a desktop app.
-      i. This browser: everything autosaves to the browser automatically as you type (the "Saved" time, top-right). It stays on this computer, in this browser only — clearing site data or using another browser/computer won't have it.
-      ii. A file on your computer: a portable `.programme.json` you write with 💾 Save (Ctrl/Cmd-S). Back it up, move it, email it, or drop it (or the 📝 Markdown snapshot) into an AI model.
-      iii. Like Office: 💾 Save writes to the same file each time (the first save asks where); 💾 Save As… lets you choose a new name or folder — to move a programme's file, Save As to the new location (your computer keeps the old file, which you can delete). Each programme keeps its own file, so saving one never overwrites another, and switching programmes switches the save location with it.
-      iv. The 📄 label beside the programme name shows which file the current programme saves to (or "Not saved to a file"); click it for the save panel. 📂 Open loads a programme file from your computer.
-      v. Auto-save to the file: in the save panel you can tick "Also auto-save to the file as I work" so the file mirrors the browser automatically (it writes a couple of seconds after you stop typing). Off by default.
+   c. How saving works — two copies are always kept: this browser (automatic) and a file on your computer (the one you own and can back up).
+      i. This browser: everything autosaves automatically as you type. It stays on this computer, in this browser only — clearing site data or using another browser/computer won't have it. Convenient, but not something to rely on as your only copy.
+      ii. A file on your computer: a portable `.programme.json`. Back it up, move it, email it, or drop it (or the 📝 Markdown snapshot) into an AI model.
+      iii. One honest status pill in the header always tells you where the FILE stands, so browser-autosave can't hide a stale file:
+         1. "⚠ Browser only" (amber) — not saved to a file yet.
+         2. "✓ Saved · name.json" (calm) — the file is up to date.
+         3. "● Unsaved → name.json" (amber) — you have changes the file doesn't have yet.
+         4. "⚠ Reconnect · name.json" (amber) — after a browser restart the file needs a fresh permission click (browsers require it); click and Save once to reconnect.
+      iv. Click the pill for one tidy menu: Save to file (Ctrl/Cmd-S), Save As / move (choose a new name or folder — this is how you move a programme's file; your computer keeps the old one to delete), Open a file, and a "Keep file in sync automatically" toggle.
+      v. When you save a programme to a file, it stays in sync automatically by default, so the file never silently falls behind. Turn the toggle off to save the file only when you click Save (the pill then shows "● Unsaved" whenever the file is behind). Each programme keeps its own file, so saving one never overwrites another, and switching programmes switches the file with it.
       vi. If the browser's storage ever fills up, the app warns you loudly ("⚠ NOT saved") instead of losing changes silently, and prompts you to save to a file and free space (trim large notes, empty 🗑 Trash).
+      vii. Chrome or Edge can save directly to a file you choose. Other browsers fall back to a download (the pill shows "💾 Download").
    d. 📥 Data is the export/import hub.
       i. Bulk download a full copy: 📊 Excel workbook (every page), 📝 Markdown snapshot, 💾 JSON (all data) or the financial CSV. A second row of buttons exports a single page to Excel on its own — Overview, Forecast, Actions, Calendar, Notes or Links.
       ii. Bulk upload: a full programme file (JSON) updates all information in the app — budget, forecast, calendar, actions and notes — in place; a financial CSV updates just contracts/POs/lines/invoices.
