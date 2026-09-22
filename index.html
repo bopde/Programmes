@@ -2966,7 +2966,7 @@ async function loadFileState(){ curFileName=null; fileDirty=false; fileNeedsPerm
   updateFileStatus(); }
 const refreshFileLabel=loadFileState; // (kept name for existing callers)
 function markFileDirty(){ if(curFileName&&!fileLinkLost&&!fileNeedsPerm&&!S.programme.autosaveFile){ fileDirty=true; updateFileStatus(); } }
-function markFileSaved(name){ curFileName=name; fileDirty=false; fileNeedsPerm=false; fileLinkLost=false; downloadedOnly=false; updateFileStatus(); }
+function markFileSaved(name){ curFileName=name; fileDirty=false; fileNeedsPerm=false; fileLinkLost=false; downloadedOnly=false; clearTimeout(bSaveTimer); updateFileStatus(); } // cancel any queued debounced save (from recent typing) — otherwise it fires after the write and wrongly re-flags "● Unsaved"
 
 ACTIONS.saveJSON=async()=>{
   const name=slug(S.programme.name)+'.programme.json';
