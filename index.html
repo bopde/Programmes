@@ -2997,10 +2997,14 @@ async function drawFileMenu(){ const el=$('#filemenu'); if(!el) return;
     : linked?(fileNeedsPerm?`Reconnect “<b>${esc(curFileName)}</b>” — Save once`:(fileDirty?`Changes not yet in “<b>${esc(curFileName)}</b>”`:`Up to date in “<b>${esc(curFileName)}</b>”`))
     : 'Not saved to a file yet';
   const relinkHint=(fileLinkLost||downloadedOnly)?`<button class="fm-item" data-act="fmOpen" style="color:var(--accent);font-weight:600">📂 Open your file to relink →</button>`:'';
+  const haveFile=linked&&!fileLinkLost; // there is a real file to write back to (maybe needing one reconnect click)
+  const saveButtons= haveFile
+    ? `<button class="fm-item" data-act="fmSave">💾 Save ${fileNeedsPerm?'to reconnect (same file)':'now'}</button>
+       <button class="fm-item" data-act="fmSaveAs">📝 Save As — different file / move…</button>`
+    : `<button class="fm-item" data-act="fmSaveAs">💾 Save to a file… (choose where)</button>`; // no file yet → always a Save As, never a misleading "save now"
   el.innerHTML=`<div class="fm-head">${head}</div>
     ${relinkHint}
-    <button class="fm-item" data-act="fmSave">💾 Save to file${linked&&!fileLinkLost?' now':'…'}</button>
-    <button class="fm-item" data-act="fmSaveAs">📝 Save As / move…</button>
+    ${saveButtons}
     <button class="fm-item" data-act="fmOpen">📂 Open a file…</button>
     <button class="fm-item" data-act="downloadCopy">⬇ Download a copy</button>
     <label class="fm-item"><input type="checkbox" ${auto?'checked':''} onchange="toggleAutosaveFile(this)"> Keep file in sync automatically</label>
