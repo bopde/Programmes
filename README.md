@@ -17,10 +17,16 @@ A single-file, locally hosted budgeting and programme management app — a "Noti
       ii. A file on your computer: a portable `.programme.json`. Back it up, move it, email it, or drop it (or the 📝 Markdown snapshot) into an AI model.
       iii. One honest status pill in the header always tells you where the FILE stands, so browser-autosave can't hide a stale file:
          1. "⚠ Browser only" (amber) — not saved to a file yet.
-         2. "✓ Saved · name.json" (calm) — the file is up to date.
+         2. "✓ Saved · name.json" (calm) — the file is up to date. This only ever shows after a real write to your file succeeds — it never shows for a download.
          3. "● Unsaved → name.json" (amber) — you have changes the file doesn't have yet.
-         4. "⚠ Reconnect · name.json" (amber) — after a browser restart the file needs a fresh permission click (browsers require it); click and Save once to reconnect.
-      iv. Click the pill for one tidy menu: Save to file (Ctrl/Cmd-S), Save As / move (choose a new name or folder — this is how you move a programme's file; your computer keeps the old one to delete), Open a file, and a "Keep file in sync automatically" toggle.
+         4. "⚠ Reconnect · name.json" (amber) — the file needs a fresh permission click; click and Save once (it writes back to the same file, never a new one).
+         5. "⚠ Relink · name.json" (amber) — the browser dropped the file link entirely on reload; use Open to pick the same file again.
+         6. "⬇ Downloaded copy" (amber) — a copy went to your Downloads and is NOT linked; use Save to file to link a folder file instead.
+      iv. Click the pill for one tidy menu: Save to file (Ctrl/Cmd-S), Save As / move (choose a new name or folder — this is how you move a programme's file; your computer keeps the old one to delete), Open a file, Download a copy, and a "Keep file in sync automatically" toggle.
+      v. Important — opening from a double-clicked file (a `file://` page) vs a local address. Browsers only remember permission to write to a file for pages served over a web address (`http://localhost` or `https://`), never for a double-clicked `file://` page. So if you open `index.html` by double-clicking it:
+         1. You can still save to a specific file you choose, and saves within that session write straight to it.
+         2. But each time you reopen the app the browser forgets the permission, so the pill shows "Reconnect" (or "Relink") and you click Open/Save once to point it back at the same file. It never silently spawns a new file or a Downloads copy behind a green tick.
+         3. To make the file link stick automatically with no per-session click, run the app from a local address instead of double-clicking. From a terminal in the folder holding `index.html`, run a tiny static server and open the address it prints — for example `python3 -m http.server 8000` then visit `http://localhost:8000/`, or `npx serve` . Save to your file once there and it stays linked and in sync across restarts.
       v. When you save a programme to a file, it stays in sync automatically by default, so the file never silently falls behind. Turn the toggle off to save the file only when you click Save (the pill then shows "● Unsaved" whenever the file is behind). Each programme keeps its own file, so saving one never overwrites another, and switching programmes switches the file with it.
       vi. If the browser's storage ever fills up, the app warns you loudly ("⚠ NOT saved") instead of losing changes silently, and prompts you to save to a file and free space (trim large notes, empty 🗑 Trash).
       vii. Chrome or Edge can save directly to a file you choose. Other browsers fall back to a download (the pill shows "💾 Download").

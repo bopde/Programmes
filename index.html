@@ -466,9 +466,12 @@ function doRedo(){ if(OVERVIEW||!redoStack.length) return; const s=redoStack.pop
 let fileAutosaveTimer=null;
 function scheduleFileAutosave(){ if(!S||!S.programme.autosaveFile||!window.showSaveFilePicker) return;
   clearTimeout(fileAutosaveTimer); fileAutosaveTimer=setTimeout(writeBoundFile,1500); }
-async function writeBoundFile(){ if(!S||!S.programme.autosaveFile) return; const h=await fileHandleFor(lsKey);
-  if(!h){ fileNeedsPerm=true; updateFileStatus(); return; } // permission lapsed (e.g. after a reload) — show Reconnect
-  try{ const w=await h.createWritable(); await w.write(JSON.stringify(S,null,1)); await w.close(); markFileSaved(h.name); }catch(e){} }
+async function writeBoundFile(){ if(!S||!S.programme.autosaveFile) return;
+  const raw=await idbGet(lsKey);
+  if(!raw){ fileLinkLost=true; updateFileStatus(); return; } // the file link didn't survive → tell the truth, prompt to relink
+  const h=await fileHandleFor(lsKey); // auto-save can't prompt for permission (no user gesture), so this is null until the user reconnects
+  if(!h){ fileNeedsPerm=true; updateFileStatus(); return; }
+  try{ const w=await h.createWritable(); await w.write(JSON.stringify(S,null,1)); await w.close(); markFileSaved(h.name); }catch(e){ fileNeedsPerm=true; updateFileStatus(); } }
 function flushFileAutosave(){ clearTimeout(fileAutosaveTimer); // best-effort final write of the OUTGOING programme before a switch (snapshots so a later S/lsKey change can't misdirect it)
   if(!(S&&S.programme&&S.programme.autosaveFile)) return; const st=JSON.stringify(S), key=lsKey;
   fileHandleFor(key).then(h=>{ if(!h) return; h.createWritable().then(w=>w.write(st).then(()=>w.close())).catch(()=>{}); }).catch(()=>{}); }
@@ -2937,26 +2940,33 @@ async function fileHandleFor(key){ const h=await idbGet(key); if(!h) return null
     if(p!=='granted'&&h.requestPermission) p=await h.requestPermission({mode:'readwrite'});
     if(p!=='granted') return null; } }catch(e){}
   return h; }
-/* ---- file status: one honest indicator of whether the FILE (not just the browser) is up to date ---- */
-let curFileName=null, fileDirty=false, fileNeedsPerm=false, lastSavedTime='';
+/* ---- file status: one HONEST indicator of whether the FILE (not just the browser) is up to date.
+   Never shows green unless a real write to a linked file has just succeeded. States:
+   downloadedOnly (a copy went to Downloads, not a folder file), fileLinkLost (the handle didn't
+   survive a reload — common on file:// pages), fileNeedsPerm (permission must be re-granted),
+   fileDirty (edits not yet written), or clean/green. ---- */
+let curFileName=null, fileDirty=false, fileNeedsPerm=false, fileLinkLost=false, downloadedOnly=false, lastSavedTime='';
 function fileSupported(){ return !!window.showSaveFilePicker; }
 function updateFileStatus(){ const el=$('#fileStatus'); if(!el) return;
   if(OVERVIEW){ el.style.display='none'; return; } el.style.display='';
   el.classList.remove('fs-ok','fs-warn','fs-dirty');
-  if(!fileSupported()){ el.textContent='💾 Download'; el.title='Save a copy of this programme to your Downloads'; return; }
+  if(!fileSupported()){ el.textContent=downloadedOnly?'⬇ Downloaded copy':'💾 Download'; el.classList.add(downloadedOnly?'fs-warn':''); el.title='This browser can only download copies (it can’t write back to a file you choose). Use Chrome or Edge to link a file.'; return; }
+  if(downloadedOnly&&!curFileName){ el.textContent='⬇ Downloaded copy'; el.classList.add('fs-warn'); el.title='A copy was saved to your Downloads — it is NOT linked, so edits won’t update it. Use “Save to file” to link a folder file instead.'; return; }
+  if(fileLinkLost){ el.textContent='⚠ Relink · '+(curFileName||'file'); el.classList.add('fs-warn'); el.title='The link to your file was dropped when the page reloaded (browsers don’t keep file access on double-clicked pages). Use “Open a file” to pick it again and keep updating the same file.'; return; }
   if(!curFileName){ el.textContent='⚠ Browser only'; el.classList.add('fs-warn'); el.title='This programme is only in this browser — click to save it to a file'; return; }
-  if(fileNeedsPerm){ el.textContent='⚠ Reconnect · '+curFileName; el.classList.add('fs-warn'); el.title='Click and Save once to reconnect “'+curFileName+'” after reloading'; return; }
+  if(fileNeedsPerm){ el.textContent='⚠ Reconnect · '+curFileName; el.classList.add('fs-warn'); el.title='Click and Save once to reconnect “'+curFileName+'” after reloading — it writes back to the SAME file, not a new one'; return; }
   if(fileDirty){ el.textContent='● Unsaved → '+curFileName; el.classList.add('fs-dirty'); el.title='You have changes not yet written to “'+curFileName+'” — click to Save'; return; }
   el.textContent='✓ '+(S.programme.autosaveFile?'Synced':'Saved')+' · '+curFileName; el.classList.add('fs-ok');
   el.title=(S.programme.autosaveFile?'Keeping “'+curFileName+'” in sync automatically':'Saved to “'+curFileName+'”')+' — click for options'; }
-async function loadFileState(){ curFileName=null; fileDirty=false; fileNeedsPerm=false;
+async function loadFileState(){ curFileName=null; fileDirty=false; fileNeedsPerm=false; fileLinkLost=false; downloadedOnly=false;
   if(fileSupported()){ const h=await idbGet(lsKey);
     if(h){ curFileName=h.name;
-      if(S.programme.autosaveFile&&h.queryPermission){ try{ if(await h.queryPermission({mode:'readwrite'})!=='granted') fileNeedsPerm=true; }catch(e){} } } }
+      try{ if(h.queryPermission&&await h.queryPermission({mode:'readwrite'})!=='granted') fileNeedsPerm=true; }catch(e){} }
+    else if(S.programme.autosaveFile){ fileLinkLost=true; } } // it was linked to a file, but the handle is gone → guide the user to relink, don't invent a new file
   updateFileStatus(); }
 const refreshFileLabel=loadFileState; // (kept name for existing callers)
-function markFileDirty(){ if(curFileName&&!S.programme.autosaveFile){ fileDirty=true; updateFileStatus(); } }
-function markFileSaved(name){ curFileName=name; fileDirty=false; fileNeedsPerm=false; updateFileStatus(); }
+function markFileDirty(){ if(curFileName&&!fileLinkLost&&!fileNeedsPerm&&!S.programme.autosaveFile){ fileDirty=true; updateFileStatus(); } }
+function markFileSaved(name){ curFileName=name; fileDirty=false; fileNeedsPerm=false; fileLinkLost=false; downloadedOnly=false; updateFileStatus(); }
 
 ACTIONS.saveJSON=async()=>{
   const content=JSON.stringify(S,null,1);
@@ -2968,10 +2978,12 @@ ACTIONS.saveJSON=async()=>{
       const w=await h.createWritable(); await w.write(content); await w.close();
       if(fresh) S.programme.autosaveFile=true; // linking a file opts into keeping it in sync
       markFileSaved(h.name); toast('Saved to '+h.name); save(); return true;
-    }catch(e){ if(e&&e.name==='AbortError') return false; }
+    }catch(e){ if(e&&e.name==='AbortError') return false;
+      console.warn('file write failed',e); toast('Couldn’t write to the file — nothing was overwritten. Try Save again, or use “Download a copy”.'); return false; } // never silently download behind a green tick
   }
-  download(name,content,'application/json'); toast('Programme file downloaded'); return true;
+  download(name,content,'application/json'); downloadedOnly=true; updateFileStatus(); toast('Downloaded a copy to your Downloads (not linked to a folder file)'); return true;
 };
+ACTIONS.downloadCopy=()=>{ hideFileMenu(); download(slug(S.programme.name)+'.programme.json',JSON.stringify(S,null,1),'application/json'); toast('Downloaded a copy to your Downloads'); };
 /* ---- one compact menu for every file action (replaces the old Save / Save As / Open cluster) ---- */
 function hideFileMenu(){ const m=$('#filemenu'); if(m) m.hidden=true; }
 async function drawFileMenu(){ const el=$('#filemenu'); if(!el) return;
@@ -2979,13 +2991,20 @@ async function drawFileMenu(){ const el=$('#filemenu'); if(!el) return;
     <button class="fm-item" data-act="fmSave">💾 Download a copy</button>
     <button class="fm-item" data-act="fmOpen">📂 Open a file…</button>
     <div class="fm-note">Everything autosaves to this browser${lastSavedTime?' · '+lastSavedTime:''}. Use Chrome or Edge to save straight to a file you choose.</div>`; return; }
-  const linked=!!curFileName; const auto=!!S.programme.autosaveFile;
-  el.innerHTML=`<div class="fm-head">${linked?(fileNeedsPerm?`Reconnect “<b>${esc(curFileName)}</b>” — Save once`:(fileDirty?`Changes not yet in “<b>${esc(curFileName)}</b>”`:`Up to date in “<b>${esc(curFileName)}</b>”`)):'Not saved to a file yet'}</div>
-    <button class="fm-item" data-act="fmSave">💾 Save to file${linked?' now':'…'}</button>
+  const linked=!!curFileName; const auto=!!S.programme.autosaveFile; const onFile=location.protocol==='file:';
+  const head= fileLinkLost?`The link to <b>${esc(curFileName||'your file')}</b> was dropped on reload`
+    : downloadedOnly&&!linked?`Downloaded a copy — <b>not linked</b> to a folder file`
+    : linked?(fileNeedsPerm?`Reconnect “<b>${esc(curFileName)}</b>” — Save once`:(fileDirty?`Changes not yet in “<b>${esc(curFileName)}</b>”`:`Up to date in “<b>${esc(curFileName)}</b>”`))
+    : 'Not saved to a file yet';
+  const relinkHint=(fileLinkLost||downloadedOnly)?`<button class="fm-item" data-act="fmOpen" style="color:var(--accent);font-weight:600">📂 Open your file to relink →</button>`:'';
+  el.innerHTML=`<div class="fm-head">${head}</div>
+    ${relinkHint}
+    <button class="fm-item" data-act="fmSave">💾 Save to file${linked&&!fileLinkLost?' now':'…'}</button>
     <button class="fm-item" data-act="fmSaveAs">📝 Save As / move…</button>
     <button class="fm-item" data-act="fmOpen">📂 Open a file…</button>
+    <button class="fm-item" data-act="downloadCopy">⬇ Download a copy</button>
     <label class="fm-item"><input type="checkbox" ${auto?'checked':''} onchange="toggleAutosaveFile(this)"> Keep file in sync automatically</label>
-    <div class="fm-note">Also autosaves to this browser${lastSavedTime?' · '+lastSavedTime:''}. The <b>file</b> is your portable, backup-able copy — the badge turns amber whenever it’s behind.</div>`; }
+    <div class="fm-note">Also autosaves to this browser${lastSavedTime?' · '+lastSavedTime:''}. The <b>file</b> is your portable copy${onFile?`.<br><b>Heads-up:</b> because you opened this from a double-clicked file, the browser forgets the file link each time you reopen it — you’ll “Open” or “Reconnect” once per session (it always writes back to the <i>same</i> file, never a new one). For a link that sticks automatically, run it from a local address — see the README.`:` — the badge turns amber whenever it’s behind.`}</div>`; }
 ACTIONS.fileMenu=t=>{ const m=$('#filemenu'); if(!m) return; if(!m.hidden){ m.hidden=true; return; } drawFileMenu(); m.hidden=false; };
 ACTIONS.saveFromInfo=()=>{ closeModal(); ACTIONS.saveJSON(); };
 ACTIONS.fmSave=()=>{ hideFileMenu(); ACTIONS.saveJSON(); };
@@ -3009,7 +3028,9 @@ ACTIONS.relinkFile=async()=>{ // Save As — pick a NEW file, write it, then reb
 ACTIONS.openJSON=async()=>{
   if(window.showOpenFilePicker){
     try{ const [h]=await showOpenFilePicker({types:[{description:'Programme file',accept:{'application/json':['.json']}}]});
-      const f=await h.getFile(); importState(JSON.parse(await f.text())); await idbSet(lsKey,h); markFileSaved(h.name); return;
+      const f=await h.getFile(); const text=await f.text();
+      try{ if(h.requestPermission) await h.requestPermission({mode:'readwrite'}); }catch(e){} // grab write access now, while we still have the click, so saves go back to THIS file
+      importState(JSON.parse(text)); await idbSet(lsKey,h); S.programme.autosaveFile=true; save(); markFileSaved(h.name); return;
     }catch(e){ if(e&&e.name==='AbortError') return; }
   }
   $('#filein').click();
