@@ -2969,19 +2969,20 @@ function markFileDirty(){ if(curFileName&&!fileLinkLost&&!fileNeedsPerm&&!S.prog
 function markFileSaved(name){ curFileName=name; fileDirty=false; fileNeedsPerm=false; fileLinkLost=false; downloadedOnly=false; updateFileStatus(); }
 
 ACTIONS.saveJSON=async()=>{
-  const content=JSON.stringify(S,null,1);
   const name=slug(S.programme.name)+'.programme.json';
   if(fileSupported()){
     try{
       let h=await fileHandleFor(lsKey), fresh=false;
       if(!h){ h=await showSaveFilePicker({suggestedName:name,types:[{description:'Programme file',accept:{'application/json':['.json']}}]}); await idbSet(lsKey,h); fresh=true; }
-      const w=await h.createWritable(); await w.write(content); await w.close();
       if(fresh) S.programme.autosaveFile=true; // linking a file opts into keeping it in sync
-      markFileSaved(h.name); toast('Saved to '+h.name); save(); return true;
+      save(); // persist the browser copy FIRST (it bumps the timestamp + would re-flag dirty)…
+      const w=await h.createWritable(); await w.write(JSON.stringify(S,null,1)); await w.close();
+      markFileSaved(h.name); // …then mark the file clean LAST, so the badge stays green
+      toast('Saved to '+h.name); return true;
     }catch(e){ if(e&&e.name==='AbortError') return false;
       console.warn('file write failed',e); toast('Couldn’t write to the file — nothing was overwritten. Try Save again, or use “Download a copy”.'); return false; } // never silently download behind a green tick
   }
-  download(name,content,'application/json'); downloadedOnly=true; updateFileStatus(); toast('Downloaded a copy to your Downloads (not linked to a folder file)'); return true;
+  download(name,JSON.stringify(S,null,1),'application/json'); downloadedOnly=true; updateFileStatus(); toast('Downloaded a copy to your Downloads (not linked to a folder file)'); return true;
 };
 ACTIONS.downloadCopy=()=>{ hideFileMenu(); download(slug(S.programme.name)+'.programme.json',JSON.stringify(S,null,1),'application/json'); toast('Downloaded a copy to your Downloads'); };
 /* ---- one compact menu for every file action (replaces the old Save / Save As / Open cluster) ---- */
