@@ -493,7 +493,6 @@ async function updateProgSwitch(){ const sel=$('#progSwitch'); if(!sel) return; 
   sel.innerHTML=`<option value="__ov" ${OVERVIEW?'selected':''}>★ All programmes (overview)</option>`
     +list.map(p=>{ const f=files[p.key]; const where=window.showSaveFilePicker?(f?' — '+f:' — browser only'):'';
         return `<option value="${esc(p.key)}" ${!OVERVIEW&&p.key===lsKey?'selected':''}>${esc(p.name)}${esc(where)}</option>`; }).join('')
-    +`<option value="__manage">🗂 Manage programmes &amp; files…</option>`
     +`<option value="__new">＋ New programme…</option>`; }
 function newProgrammePrompt(){
   modal(`<div class="m-h"><h3>New programme</h3></div><div class="m-b">
@@ -923,7 +922,6 @@ $('#progName').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefa
 $('#progSwitch').addEventListener('change',e=>{ const v=e.target.value;
   if(v==='__ov') enterOverview();
   else if(v==='__new'){ updateProgSwitch(); newProgrammePrompt(); }
-  else if(v==='__manage'){ updateProgSwitch(); ACTIONS.manageProgrammes(); }
   else if(v) openKey(v); });
 
 /* data-bind="collection.id.field" (collections) or "path.field" for S.programme etc */
@@ -2988,28 +2986,26 @@ ACTIONS.downloadCopy=()=>{ hideFileMenu(); download(slug(S.programme.name)+'.pro
 /* ---- one compact menu for every file action (replaces the old Save / Save As / Open cluster) ---- */
 function hideFileMenu(){ const m=$('#filemenu'); if(m) m.hidden=true; }
 async function drawFileMenu(){ const el=$('#filemenu'); if(!el) return;
-  if(!fileSupported()){ el.innerHTML=`<div class="fm-head">This browser can’t link a file directly.</div>
+  if(!fileSupported()){ el.innerHTML=`<div class="fm-head">This browser can only download copies.</div>
     <button class="fm-item" data-act="fmSave">💾 Download a copy</button>
-    <button class="fm-item" data-act="fmOpen">📂 Open a file…</button>
-    <div class="fm-note">Everything autosaves to this browser${lastSavedTime?' · '+lastSavedTime:''}. Use Chrome or Edge to save straight to a file you choose.</div>`; return; }
-  const linked=!!curFileName; const auto=!!S.programme.autosaveFile; const onFile=location.protocol==='file:';
-  const head= fileLinkLost?`The link to <b>${esc(curFileName||'your file')}</b> was dropped on reload`
-    : downloadedOnly&&!linked?`Downloaded a copy — <b>not linked</b> to a folder file`
-    : linked?(fileNeedsPerm?`Reconnect “<b>${esc(curFileName)}</b>” — Save once`:(fileDirty?`Changes not yet in “<b>${esc(curFileName)}</b>”`:`Up to date in “<b>${esc(curFileName)}</b>”`))
+    <button class="fm-item" data-act="fmOpen">📂 Open a file…</button>`; return; }
+  const linked=!!curFileName; const auto=!!S.programme.autosaveFile;
+  const head= fileLinkLost?`Link to <b>${esc(curFileName||'your file')}</b> dropped on reload`
+    : downloadedOnly&&!linked?`Downloaded a copy — not linked to a file`
+    : linked?(fileNeedsPerm?`Reconnect <b>${esc(curFileName)}</b>`:(fileDirty?`Unsaved — <b>${esc(curFileName)}</b>`:`Saved to <b>${esc(curFileName)}</b>`))
     : 'Not saved to a file yet';
   const relinkHint=(fileLinkLost||downloadedOnly)?`<button class="fm-item" data-act="fmOpen" style="color:var(--accent);font-weight:600">📂 Open your file to relink →</button>`:'';
   const haveFile=linked&&!fileLinkLost; // there is a real file to write back to (maybe needing one reconnect click)
   const saveButtons= haveFile
-    ? `<button class="fm-item" data-act="fmSave">💾 Save ${fileNeedsPerm?'to reconnect (same file)':'now'}</button>
-       <button class="fm-item" data-act="fmSaveAs">📝 Save As — different file / move…</button>`
-    : `<button class="fm-item" data-act="fmSaveAs">💾 Save to a file… (choose where)</button>`; // no file yet → always a Save As, never a misleading "save now"
+    ? `<button class="fm-item" data-act="fmSave">💾 Save ${fileNeedsPerm?'to reconnect':'now'}</button>
+       <button class="fm-item" data-act="fmSaveAs">📝 Save As…</button>`
+    : `<button class="fm-item" data-act="fmSaveAs">💾 Save to a file…</button>`; // no file yet → always a Save As, never a misleading "save now"
   el.innerHTML=`<div class="fm-head">${head}</div>
     ${relinkHint}
     ${saveButtons}
     <button class="fm-item" data-act="fmOpen">📂 Open a file…</button>
     <button class="fm-item" data-act="downloadCopy">⬇ Download a copy</button>
-    <label class="fm-item"><input type="checkbox" ${auto?'checked':''} onchange="toggleAutosaveFile(this)"> Keep file in sync automatically</label>
-    <div class="fm-note">Also autosaves to this browser${lastSavedTime?' · '+lastSavedTime:''}. The <b>file</b> is your portable copy${onFile?`.<br><b>Heads-up:</b> because you opened this from a double-clicked file, the browser forgets the file link each time you reopen it — you’ll “Open” or “Reconnect” once per session (it always writes back to the <i>same</i> file, never a new one). For a link that sticks automatically, run it from a local address — see the README.`:` — the badge turns amber whenever it’s behind.`}</div>`; }
+    <label class="fm-item"><input type="checkbox" ${auto?'checked':''} onchange="toggleAutosaveFile(this)"> Keep file in sync automatically</label>`; }
 ACTIONS.fileMenu=t=>{ const m=$('#filemenu'); if(!m) return; if(!m.hidden){ m.hidden=true; return; } drawFileMenu(); m.hidden=false; };
 ACTIONS.saveFromInfo=()=>{ closeModal(); ACTIONS.saveJSON(); };
 ACTIONS.fmSave=()=>{ hideFileMenu(); ACTIONS.saveJSON(); };
@@ -3040,36 +3036,6 @@ ACTIONS.openJSON=async()=>{
   }
   $('#filein').click();
 };
-/* ---- manage all programmes and see, at a glance, where each is saved ---- */
-async function saveProgrammeToFile(key){ if(!window.showSaveFilePicker) return false;
-  let data=localStorage.getItem(key); if(!data) return false;
-  try{ const obj=JSON.parse(data); if(obj&&obj.programme){ obj.programme.autosaveFile=true; data=JSON.stringify(obj,null,1); localStorage.setItem(key,data); if(key===lsKey&&S) S.programme.autosaveFile=true; } }catch(e){}
-  try{ let h=await idbGet(key);
-    if(!h){ let nm='programme.json'; try{ nm=slug(JSON.parse(data).programme.name)+'.programme.json'; }catch(e){}
-      h=await showSaveFilePicker({suggestedName:nm,types:[{description:'Programme file',accept:{'application/json':['.json']}}]}); await idbSet(key,h); }
-    const w=await h.createWritable(); await w.write(data); await w.close(); toast('Saved to '+h.name);
-    if(key===lsKey) markFileSaved(h.name);
-    return true;
-  }catch(e){ if(e&&e.name==='AbortError') return false; return false; } }
-ACTIONS.manageProgrammes=async()=>{ const list=listLocal(); const files=await progFiles(list); const canFile=!!window.showSaveFilePicker;
-  const rows=list.map(p=>{ const isCur=p.key===lsKey&&!OVERVIEW; const f=files[p.key];
-    return `<tr ${isCur?'style="background:var(--surface-2)"':''}>
-      <td><b>${esc(p.name)}</b>${isCur?' <span class="badge ok">current</span>':''}</td>
-      <td>${f?('📄 '+esc(f)):'<span class="badge warn" title="Lives only in this browser">browser only</span>'}</td>
-      <td class="small muted nowrap">${p.modified?new Date(p.modified).toLocaleDateString('en-NZ'):''}</td>
-      <td class="nowrap" style="text-align:right">
-        ${isCur?'<span class="muted small">open</span>':`<button class="btn sm" data-act="mgOpen" data-key="${esc(p.key)}">Open</button>`}
-        ${canFile?`<button class="btn sm" data-act="mgSaveFile" data-key="${esc(p.key)}">${f?'Save now':'Save to a file…'}</button>`:''}
-      </td></tr>`; }).join('');
-  modal(`<div class="m-h"><h3>Programmes &amp; where they’re saved</h3></div><div class="m-b">
-    <div class="small muted" style="margin-bottom:10px">Every programme is kept in this browser. Give one a <b>file</b> to have a portable, backup-able copy you own${canFile?'':' (use Chrome or Edge to link a file — this browser can only download copies)'}. “Browser only” means it lives here and nowhere else.</div>
-    <div class="tblwrap"><table class="tbl"><thead><tr><th>Programme</th><th>Saved to</th><th>Changed</th><th></th></tr></thead>
-    <tbody>${rows||'<tr><td colspan="4"><div class="empty">No programmes yet</div></td></tr>'}</tbody></table></div>
-  </div><div class="m-f"><button class="btn primary" data-act="closeModal">Done</button></div>`); };
-ACTIONS.mgOpen=t=>{ closeModal(); openKey(t.dataset.key); };
-ACTIONS.mgSaveFile=async t=>{ const key=t.dataset.key;
-  const ok=await saveProgrammeToFile(key);
-  if(ok){ updateProgSwitch(); ACTIONS.manageProgrammes(); } };
 $('#filein').addEventListener('change',async e=>{
   const f=e.target.files[0]; if(!f) return;
   try{ importState(JSON.parse(await f.text())); }catch(err){ toast('Could not read that file'); }
