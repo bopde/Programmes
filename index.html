@@ -132,6 +132,7 @@ tr.fc-planned>td{background:#f4f1fa}
 .filewrap{position:relative}
 #fileStatus{white-space:nowrap;max-width:230px;overflow:hidden;text-overflow:ellipsis;border:1px solid var(--line);font-weight:600}
 #fileStatus.fs-ok{background:var(--good-soft);color:var(--good);border-color:transparent}
+#fileStatus .fs-auto{font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;opacity:.8;border:1px solid currentColor;border-radius:4px;padding:0 3px;margin-left:5px;vertical-align:1px}
 #fileStatus.fs-warn,#fileStatus.fs-dirty{background:var(--warn-soft);color:var(--warn);border-color:var(--warn)}
 .filemenu{position:absolute;top:calc(100% + 5px);right:0;z-index:70;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:6px;min-width:250px}
 .filemenu .fm-head{font-size:12px;color:var(--ink-2);padding:5px 8px 7px}
@@ -3011,8 +3012,8 @@ function updateFileStatus(){ const el=$('#fileStatus'); if(!el) return;
   if(!curFileName){ el.textContent='⚠ Browser only'; el.classList.add('fs-warn'); el.title='This programme is only in this browser — click to save it to a file'; return; }
   if(fileNeedsPerm){ el.textContent='⚠ Reconnect · '+curFileName; el.classList.add('fs-warn'); el.title='Click and Save once to reconnect “'+curFileName+'” after reloading — it writes back to the SAME file, not a new one'; return; }
   if(fileDirty){ el.textContent='● Unsaved → '+curFileName; el.classList.add('fs-dirty'); el.title='You have changes not yet written to “'+curFileName+'” — click to Save'; return; }
-  el.textContent='✓ '+(S.programme.autosaveFile?'Synced':'Saved')+' · '+curFileName; el.classList.add('fs-ok');
-  el.title=(S.programme.autosaveFile?'Keeping “'+curFileName+'” in sync automatically':'Saved to “'+curFileName+'”')+' — click for options'; }
+  el.innerHTML='✓ Saved · '+esc(curFileName)+(S.programme.autosaveFile?' <span class="fs-auto" title="Auto-sync on — saved automatically after every change">auto</span>':''); el.classList.add('fs-ok');
+  el.title=(S.programme.autosaveFile?'Saved to “'+curFileName+'” and kept in sync automatically after every change':'Saved to “'+curFileName+'” — this file updates when you click Save')+' — click for options'; }
 async function loadFileState(){ curFileName=null; fileDirty=false; fileNeedsPerm=false; fileLinkLost=false; downloadedOnly=false;
   if(fileSupported()){ const h=await idbGet(lsKey);
     if(h){ curFileName=h.name;

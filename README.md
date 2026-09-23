@@ -17,7 +17,7 @@ A single-file, locally hosted budgeting and programme management app — a "Noti
       ii. A file on your computer: a portable `.programme.json`. Back it up, move it, email it, or drop it (or the 📝 Markdown snapshot) into an AI model.
       iii. One honest status pill in the header always tells you where the FILE stands, so browser-autosave can't hide a stale file:
          1. "⚠ Browser only" (amber) — not saved to a file yet.
-         2. "✓ Saved · name.json" (calm) — the file is up to date. This only ever shows after a real write to your file succeeds — it never shows for a download.
+         2. "✓ Saved · name.json" (calm) — the file is up to date. This only ever shows after a real write to your file succeeds — it never shows for a download. A small "auto" tag next to it means auto-sync is on, so the file updates by itself after every change; without the tag, the file is current because you last saved it and will need a save after your next edit.
          3. "● Unsaved → name.json" (amber) — you have changes the file doesn't have yet.
          4. "⚠ Reconnect · name.json" (amber) — the file needs a fresh permission click; click and Save once (it writes back to the same file, never a new one).
          5. "⚠ Relink · name.json" (amber) — the browser dropped the file link entirely on reload; use Open to pick the same file again.
