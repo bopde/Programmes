@@ -450,6 +450,8 @@ function dataFp(){ const u=S.ui, m=S.programme&&S.programme.modified; // fingerp
   S.ui=undefined; if(S.programme) S.programme.modified='';
   let s; try{ s=JSON.stringify(S); }catch(e){ s=Math.random()+''; }
   S.ui=u; if(S.programme) S.programme.modified=m; return s; }
+function fpOf(obj){ // same fingerprint as dataFp() but for ANY programme object (used to tell if a file and the browser copy really differ)
+  try{ const c=JSON.parse(JSON.stringify(obj)); if(c){ c.ui=undefined; if(c.programme) c.programme.modified=''; } return JSON.stringify(c); }catch(e){ return Math.random()+''; } }
 function resetUndo(){ try{ undoStack=[JSON.stringify(S)]; }catch(e){ undoStack=[]; } redoStack=[]; lastDataFp=dataFp(); }
 function noteChange(){ if(undoLock||OVERVIEW) return; clearTimeout(undoT);
   undoT=setTimeout(()=>{ const fp=dataFp(); if(fp===lastDataFp) return; // ignore pure view-state changes (filters, tab, calendar nav)
@@ -628,15 +630,60 @@ function migrate(d){ const def=defaultState('x');
 function replaceStateInPlace(obj){ // update ALL data of the CURRENT programme (keeps its storage key + file link)
   if(!obj||!obj.programme){ toast('Not a valid programme file'); return false; }
   S=migrate(obj); localStorage.setItem('progapp:last',lsKey); save(); initUI(); return true; }
-function importState(obj){
-  if(!obj||!obj.programme){ toast('Not a valid programme file'); return; }
-  const nm=obj.programme.name; const dup=listLocal().find(p=>p.name===nm);
-  let overwrite=false;
-  if(dup) overwrite=confirm('A programme named “'+nm+'” already exists in this browser.\n\nOK = replace that programme with this file.\nCancel = keep both (open this file as a separate copy).');
+function importState(obj){ return loadFileIntoProgramme(obj,null); } // legacy entry (plain file input, no handle)
+/* Load a programme file into the RIGHT existing programme (never a silent duplicate).
+   Matches the file to a programme by its file identity, else by name; only prompts when the
+   browser copy genuinely differs from the file (so an in-sync relink is silent), and offers to
+   keep the browser version instead of losing unsaved changes. */
+async function loadFileIntoProgramme(obj, handle){
+  if(!obj||!obj.programme){ toast('That file isn’t a programme file'); return; }
+  const list=listLocal(); let target=null;
+  if(handle){ for(const p of list){ try{ const hp=await idbGet(p.key); if(hp&&hp.isSameEntry&&await hp.isSameEntry(handle)){ target=p; break; } }catch(e){} } }
+  if(!target) target=list.find(p=>p.name===obj.programme.name)||null;
+
+  if(target){
+    let stored=null; try{ stored=JSON.parse(localStorage.getItem(target.key)); }catch(e){}
+    const differs = stored && fpOf(stored)!==fpOf(obj); // in sync? then no prompt at all — just relink/load
+    if(differs){
+      const bT=stored.programme&&stored.programme.modified?new Date(stored.programme.modified):null;
+      const fT=obj.programme&&obj.programme.modified?new Date(obj.programme.modified):null;
+      const fileNewer = bT&&fT ? fT>bT : null;
+      const isCurrent = target.key===lsKey && !OVERVIEW; // can we save the live browser copy to its file first?
+      const lead = fileNewer===false
+        ? `Your browser copy of <b>${esc(target.name)}</b> has changes that aren’t in this file yet — loading the file would discard them.`
+        : fileNewer===true
+        ? `This file is <b>newer</b> than your browser copy of <b>${esc(target.name)}</b>.`
+        : `This file differs from your browser copy of <b>${esc(target.name)}</b>.`;
+      const stamps=`<p class="small muted" style="margin:6px 0 0">${bT?('Browser copy: '+bT.toLocaleString('en-NZ')):''}${fT?(' · File: '+fT.toLocaleString('en-NZ')):''}</p>`;
+      const buttons=[];
+      if(isCurrent) buttons.push({label:'Keep browser version (save it to a file)',value:'keep'});
+      buttons.push({label:'Load the file (replace browser copy)',value:'file',cls:'primary'});
+      buttons.push({label:'Cancel',value:'cancel'});
+      const choice=await choiceModal(
+        `<h3 style="margin:0 0 8px">Open “${esc(obj.programme.name)}”?</h3>
+         <p class="small">${lead} Loading replaces the browser copy — it does <b>not</b> create a second programme.</p>${stamps}`, buttons);
+      if(choice==='cancel') return;                       // truly abort: nothing changes, no duplicate
+      if(choice==='keep'){ await ACTIONS.saveJSON(); return; } // write the current browser version out; don't overwrite it with the file
+    }
+    // load into the SAME programme key — one programme, no duplicate
+    flushFileAutosave();
+    S=migrate(obj); OVERVIEW=false; ovCache=null; $('#progName').setAttribute('contenteditable','true');
+    lsKey=target.key; localStorage.setItem('progapp:last',lsKey); save();
+    if(handle){ await idbSet(lsKey,handle); S.programme.autosaveFile=true; save(); }
+    $('#start').classList.remove('show'); initUI();
+    if(handle) markFileSaved(handle.name); else refreshFileLabel();
+    toast('Loaded “'+obj.programme.name+'”'); return;
+  }
+
+  // no existing match → a genuinely new programme (no confusing prompt)
+  flushFileAutosave();
   S=migrate(obj); OVERVIEW=false; ovCache=null; $('#progName').setAttribute('contenteditable','true');
-  lsKey=(dup&&overwrite)?dup.key:('progapp:data:'+slug(S.programme.name)+'-'+uid().slice(-4));
+  lsKey='progapp:data:'+slug(S.programme.name)+'-'+uid().slice(-4);
   localStorage.setItem('progapp:last',lsKey); save();
-  $('#start').classList.remove('show'); initUI(); toast(dup&&!overwrite?'Opened as a separate copy':'Programme loaded');
+  if(handle){ await idbSet(lsKey,handle); S.programme.autosaveFile=true; save(); }
+  $('#start').classList.remove('show'); initUI();
+  if(handle) markFileSaved(handle.name); else refreshFileLabel();
+  toast('Opened “'+obj.programme.name+'” as a new programme');
 }
 function initUI(){
   $('#progName').textContent=S.programme.name;
@@ -896,6 +943,16 @@ function fcSupplier(ref){ const [t,id]=ref.split(':');
 /* ================= modal / toast / delegation ================= */
 function modal(html){ const d=$('#modal'); d.innerHTML=html; if(!d.open) d.showModal(); }
 function closeModal(){ const d=$('#modal'); if(d.open) d.close(); d.innerHTML=''; }
+/* a promise-returning confirm with custom buttons; resolves the chosen value, or 'cancel' on Escape.
+   NB: listen for 'cancel' (Escape, fired synchronously) — never 'close', whose async event from a
+   previous modal would otherwise leak into and dismiss the next one. */
+function choiceModal(bodyHtml, buttons){ return new Promise(resolve=>{ const d=$('#modal'); let done=false;
+  const onCancel=e=>{ if(e) e.preventDefault(); finish('cancel'); };
+  const finish=v=>{ if(done) return; done=true; d.removeEventListener('cancel',onCancel); closeModal(); resolve(v); };
+  const foot=buttons.map((b,i)=>`<button class="btn ${b.cls||''}" data-ci="${i}">${esc(b.label)}</button>`).join('');
+  d.innerHTML=`<div class="m-b">${bodyHtml}</div><div class="m-f">${foot}</div>`;
+  d.querySelectorAll('[data-ci]').forEach(btn=>btn.addEventListener('click',()=>finish(buttons[+btn.dataset.ci].value)));
+  d.addEventListener('cancel',onCancel); if(!d.open) d.showModal(); }); }
 let toastTimer=null;
 function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),2200); }
 
@@ -3028,11 +3085,13 @@ ACTIONS.relinkFile=async()=>{ // Save As — pick a NEW file, write it, then reb
   }catch(e){ if(e&&e.name==='AbortError') return; } };
 ACTIONS.openJSON=async()=>{
   if(window.showOpenFilePicker){
-    try{ const [h]=await showOpenFilePicker({types:[{description:'Programme file',accept:{'application/json':['.json']}}]});
-      const f=await h.getFile(); const text=await f.text();
-      try{ if(h.requestPermission) await h.requestPermission({mode:'readwrite'}); }catch(e){} // grab write access now, while we still have the click, so saves go back to THIS file
-      importState(JSON.parse(text)); await idbSet(lsKey,h); S.programme.autosaveFile=true; save(); markFileSaved(h.name); return;
-    }catch(e){ if(e&&e.name==='AbortError') return; }
+    let h,obj;
+    try{ [h]=await showOpenFilePicker({types:[{description:'Programme file',accept:{'application/json':['.json']}}]});
+      const f=await h.getFile(); obj=JSON.parse(await f.text());
+    }catch(e){ if(e&&e.name==='AbortError') return; toast('Could not read that file'); return; }
+    try{ if(h.requestPermission) await h.requestPermission({mode:'readwrite'}); }catch(e){} // grab write access now, while we still have the click, so saves go back to THIS file
+    await loadFileIntoProgramme(obj,h); // matches it to its programme, prompts only on a real conflict, never duplicates
+    return;
   }
   $('#filein').click();
 };
