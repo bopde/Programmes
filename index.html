@@ -321,6 +321,46 @@ dialog .m-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;bord
 .empty{padding:36px;text-align:center;color:var(--ink-3)}
 .settings-row{display:flex;gap:8px;align-items:center;margin-bottom:6px}
 input[type=color]{padding:0;width:34px;height:28px;border-radius:6px;cursor:pointer}
+/* segmented button group */
+.seg{display:inline-flex;gap:2px;border:1px solid var(--line);border-radius:8px;padding:2px;background:var(--surface-2)}
+.seg .btn.sm:not(.accent){border-color:transparent;background:transparent}
+/* Actions · roadmap (timeline) */
+.road-scroll{overflow:auto;max-height:72vh;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.road-grid{position:relative;min-width:100%}
+.road-axis{display:flex;position:sticky;top:0;z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+.road-corner{position:sticky;left:0;z-index:6;width:240px;min-width:240px;box-sizing:border-box;padding:7px 10px;font-size:11px;font-weight:600;color:var(--ink-2);background:var(--surface);border-right:1px solid var(--line)}
+.road-axis-track{position:relative;height:30px}
+.road-tick{position:absolute;top:0;bottom:0;border-left:1px solid var(--line)}
+.road-tick>span{position:absolute;left:3px;top:8px;font-size:10px;color:var(--ink-3);white-space:nowrap}
+.road-tick.mo>span,.road-tick.q>span,.road-tick.wk>span{color:var(--ink-2);font-weight:600}
+.road-tick.q{border-left-color:var(--ink-3)}
+.road-tick.we{background:color-mix(in srgb,var(--ink-3) 6%,transparent)}
+.road-row{display:flex;align-items:stretch;min-height:30px;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
+.road-label{position:sticky;left:0;z-index:3;width:240px;min-width:240px;box-sizing:border-box;display:flex;align-items:center;gap:4px;padding:4px 8px;background:var(--surface);border-right:1px solid var(--line);font-size:13px}
+.road-row.rhead .road-label{background:color-mix(in srgb,var(--accent) 10%,var(--surface))}
+.road-row.rhead .road-track{background:color-mix(in srgb,var(--accent) 6%,transparent)}
+.road-label .caret{flex:0 0 14px;width:14px;cursor:pointer;color:var(--ink-3);font-size:10px;text-align:center}
+.road-label .caret.chidden{visibility:hidden}
+.road-label .rname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.road-row.rdone .rname{text-decoration:line-through;color:var(--ink-3)}
+.road-track{position:relative;flex:none}
+.road-pill{position:absolute;top:5px;height:20px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;z-index:1;max-width:60vw}
+.road-pill.span{border:1px solid;border-radius:7px;padding:0 7px;box-sizing:border-box;min-width:16px;overflow:hidden}
+.road-pill .rp-dot{flex:none;width:9px;height:9px;border-radius:50%}
+.road-pill .rp-lab{font-size:11px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.road-pill .rp-lab.out{padding-left:4px;color:var(--ink-2)}
+.road-pill.done{opacity:.5;filter:grayscale(.6)}
+.road-pill.done .rp-lab{text-decoration:line-through}
+.road-pill:hover{filter:brightness(1.05)}
+.road-pill.span:hover{box-shadow:0 0 0 2px var(--accent-soft)}
+.road-today{position:absolute;top:0;bottom:0;width:0;border-left:2px solid var(--bad);z-index:2;pointer-events:none}
+.road-today::after{content:'today';position:absolute;top:1px;left:3px;font-size:9px;color:var(--bad);font-weight:700}
+.road-detail{position:sticky;left:0;z-index:4;background:var(--surface);border-bottom:1px solid var(--line)}
+.rd-card{width:min(720px,calc(100vw - 60px));box-sizing:border-box;padding:10px 12px;display:flex;flex-direction:column;gap:8px;border-left:3px solid var(--accent);background:var(--surface-2)}
+.rd-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.rd-f{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-2)}
+.rd-row textarea{width:100%;min-height:52px;resize:vertical}
+.rd-owner{width:120px}
 @media print{header,.toolbar{display:none}}
 </style>
 </head>
@@ -429,7 +469,8 @@ function defaultState(name){return {
       budgetArch:'hide',structView:'active',structFilter:'',structF:{supplier:[],wbs:[],contract:[]},
       fcFilter:'',fcF:{supplier:[],wbs:[],contract:[]},fcView:'',fcOpen:{},
       ovF:{supplier:[],wbs:[],contract:[]},ovWindow:false,calShowTasks:true,calShowDone:true,calF:{organiser:[]},
-      structCollapsed:{},poCollapsed:{},notePage:'',taskGroup:'',taskWeekOnly:false,fcArch:'active'},
+      structCollapsed:{},poCollapsed:{},notePage:'',taskGroup:'',taskWeekOnly:false,fcArch:'active',
+      actionsView:'list',roadZoom:'week',roadOpen:''},
 };}
 function fyStartKey(){ const d=new Date(); const y=d.getMonth()+1>=7?d.getFullYear():d.getFullYear()-1; return y+'-07'; }
 function currentMonthKey(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
@@ -635,6 +676,9 @@ function migrate(d){ const def=defaultState('x');
   if(d.fcCfg) d.fcCfg.gran='quarter';
   if(!d.links) d.links=[];
   if(!d.trash) d.trash=[];
+  if(!d.ui.actionsView) d.ui.actionsView='list';   // Actions tab: 'list' | 'roadmap'
+  if(!d.ui.roadZoom) d.ui.roadZoom='week';          // roadmap axis granularity: day | week | month | quarter
+  if(d.ui.roadOpen===undefined) d.ui.roadOpen='';   // id of the task whose inline detail is open on the roadmap
   return d;
 }
 function replaceStateInPlace(obj){ // update ALL data of the CURRENT programme (keeps its storage key + file link)
@@ -2199,19 +2243,29 @@ function weekBounds(){ const d=new Date(todayStr()+'T00:00'); const mon=new Date
 const prioRank=id=>{ const i=(S.settings.taskPriorities||[]).findIndex(p=>p.id===id); return i<0?99:i; };
 
 function renderTasks(v){
-  const hide=S.ui.hideDone, week=S.ui.taskWeekOnly;
+  const hide=S.ui.hideDone, week=S.ui.taskWeekOnly, road=S.ui.actionsView==='roadmap';
+  const prevScroll=(($('#roadScroll')||{}).scrollLeft)||0;
   const owners=[...new Set([]. concat(...collectTasks().map(t=>t.owner).filter(Boolean)))];
   v.innerHTML=`<div class="toolbar">
     <button class="btn sm primary" data-act="addTask">+ Task</button>
     <button class="btn sm" data-act="addHeader" title="Add a section header (e.g. a programme or workstream)">+ Header</button>
-    <button class="btn sm ${week?'accent':''}" data-act="tglWeek" title="Show this week's priorities">★ This week</button>
+    <span class="seg" title="List or timeline (roadmap) view of the same tasks">
+      <button class="btn sm ${road?'':'accent'}" data-act="setActionsView" data-v="list">List</button>
+      <button class="btn sm ${road?'accent':''}" data-act="setActionsView" data-v="roadmap">Roadmap</button>
+    </span>
+    ${road?'':`<button class="btn sm ${week?'accent':''}" data-act="tglWeek" title="Show this week's priorities">★ This week</button>`}
+    ${road?roadZoomControls():''}
     <div class="sp" style="flex:1"></div>
     <span class="small muted">${countOpenTasks()} open</span>
     <label class="small nowrap" style="margin-left:10px"><input type="checkbox" ${hide?'':'checked'} data-act="none" id="showDone"> show completed</label>
   </div>
-  ${week?renderWeekView():`<div class="card"><div class="card-b task-tree" id="ttree">${S.tasks.length?taskListHTML(S.tasks,hide,0):'<div class="empty">No tasks yet. Add one — Enter for the next, Tab to nest. Use + Header to group by programme or workstream.</div>'}</div></div>`}
-  <div class="small muted" style="margin-top:8px">Enter = new task below · Tab / Shift-Tab = nest / un-nest · click the state pill to cycle, the flag to set priority · tasks appear on the calendar by due date and completion date.</div>`;
+  ${road?renderRoadmap(hide)
+    :week?renderWeekView()
+    :`<div class="card"><div class="card-b task-tree" id="ttree">${S.tasks.length?taskListHTML(S.tasks,hide,0):'<div class="empty">No tasks yet. Add one — Enter for the next, Tab to nest. Use + Header to group by programme or workstream.</div>'}</div></div>`}
+  ${road?'<div class="small muted" style="margin-top:8px">Bars run start → due; a lone marker is a due date with no start. Click a bar to edit · click a header caret to fold, shared with the list.</div>'
+        :'<div class="small muted" style="margin-top:8px">Enter = new task below · Tab / Shift-Tab = nest / un-nest · click the state pill to cycle, the flag to set priority · tasks appear on the calendar by due date and completion date.</div>'}`;
   $('#showDone').onchange=e=>{ S.ui.hideDone=!e.target.checked; save(); render(); };
+  if(road) roadApplyScroll(prevScroll);
   ownerDatalist(); // build the owner autocomplete now, not only after focusing a task
 }
 function collectTasks(){ const out=[]; walkTasks(t=>{ if(t.type!=='header') out.push(t); }); return out; }
@@ -2233,6 +2287,85 @@ function renderWeekView(){ const wb=weekBounds(); const today=todayStr();
         <span class="small ${dueCls}" style="width:110px;text-align:right">${t.due?dstr(t.due):''}</span></div>`;
     }).join('')}</div></div>`;
 }
+/* ===== Actions · Roadmap (timeline) view ======================================================
+   Same tasks as the list, placed on a horizontal time axis and grouped into lanes by header.
+   Shares collapse state (t.collapsed) and the "show completed" toggle (S.ui.hideDone) with the list. */
+let roadRecenter=true; // center on today on first paint / zoom change / Today button (not on every edit)
+const ROAD_PX={day:34,week:13,month:4.6,quarter:2.3}; // pixels per day at each zoom
+function roadPx(){ return ROAD_PX[S.ui.roadZoom]||ROAD_PX.week; }
+function dnum(ds){ return Math.round(new Date(ds+'T00:00').getTime()/86400000); }
+function daysBetween(a,b){ return dnum(b)-dnum(a); }
+function weekStart(ds){ const d=new Date(ds+'T00:00'); d.setDate(d.getDate()-((d.getDay()+6)%7)); return iso(d); }
+function monthStart(ds){ return ds.slice(0,8)+'01'; }
+function taskColor(t){ const tg=taskTagOf((t.tagIds||[])[0]); return tg?tg.color:'var(--ink-3)'; } // colour pills by first tag (de-facto workstream)
+function roadRange(){ let lo=null,hi=null; const add=ds=>{ if(!ds) return; if(lo===null||ds<lo) lo=ds; if(hi===null||ds>hi) hi=ds; };
+  walkTasks(t=>{ if(t.type==='header') return; add(t.start); add(t.due); add(t.completed); });
+  const today=todayStr(); add(today); if(!lo) lo=today; if(!hi) hi=today;
+  return {min:weekStart(addDays(lo,-4)), max:addDays(hi,10)}; } // pad + snap start to a Monday for tidy ticks
+function roadTicks(min,max,px){ const zoom=S.ui.roadZoom, out=[]; const push=(ds,label,cls)=>out.push({x:daysBetween(min,ds)*px,label,cls});
+  if(zoom==='day'){ for(let d=min; d<=max; d=addDays(d,1)){ const dt=new Date(d+'T00:00'), dow=dt.getDay();
+      push(d,(dt.getDate()===1?dt.toLocaleDateString('en-NZ',{month:'short'})+' ':'')+dt.getDate(), dow===1?'wk':((dow===0||dow===6)?'we':'')); } }
+  else if(zoom==='week'){ for(let d=weekStart(min); d<=max; d=addDays(d,7)){ const dt=new Date(d+'T00:00'); push(d, dt.getDate()+' '+dt.toLocaleDateString('en-NZ',{month:'short'}), dt.getDate()<=7?'mo':''); } }
+  else { let d=monthStart(min); while(d<=max){ const dt=new Date(d+'T00:00'), m=dt.getMonth(); push(d, dt.toLocaleDateString('en-NZ',{month:'short'})+(m===0?' '+dt.getFullYear():''), (m%3===0)?'q':''); d=iso(new Date(dt.getFullYear(),m+1,1)); } }
+  return out; }
+function roadZoomControls(){ const z=S.ui.roadZoom, b=(k,l)=>`<button class="btn sm ${z===k?'accent':''}" data-act="roadZoom" data-z="${k}">${l}</button>`;
+  return `<span class="seg" title="Zoom the time axis">${b('day','Day')}${b('week','Week')}${b('month','Month')}${b('quarter','Quarter')}</span>
+    <button class="btn sm" data-act="roadToday" title="Scroll to today">Today</button>`; }
+function renderRoadmap(hide){
+  const {min,max}=roadRange(), px=roadPx(), today=todayStr();
+  const totalDays=Math.max(1,daysBetween(min,max)), trackW=Math.ceil(totalDays*px), labelW=240;
+  const gridStep=S.ui.roadZoom==='day'?px:S.ui.roadZoom==='week'?px*7:px*30.4;
+  const gridBg=`background-image:repeating-linear-gradient(90deg,var(--line) 0 1px,transparent 1px ${gridStep}px)`;
+  const pill=t=>{ const done=stateOf(t.stateId).done, col=taskColor(t), who=t.owner?' · '+t.owner:'';
+    if(t.start&&t.due&&t.due>=t.start){ const x=daysBetween(min,t.start)*px, w=Math.max(px*0.8,daysBetween(t.start,t.due)*px);
+      return `<div class="road-pill span${done?' done':''}" data-act="roadOpen" data-id="${t.id}" style="left:${x}px;width:${w}px;background:${col}26;border-color:${col}" title="${esc(t.name)} · ${t.start} → ${t.due}${esc(who)}"><span class="rp-dot" style="background:${col}"></span><span class="rp-lab">${esc(t.name||'(untitled)')}${esc(who)}</span></div>`; }
+    const anchor=t.due||t.start||t.completed; if(!anchor) return '';
+    const x=daysBetween(min,anchor)*px;
+    return `<div class="road-pill mark${done?' done':''}" data-act="roadOpen" data-id="${t.id}" style="left:${x}px" title="${esc(t.name)} · ${anchor}${esc(who)}"><span class="rp-dot" style="background:${col}"></span><span class="rp-lab out">${esc(t.name||'(untitled)')}${esc(who)}</span></div>`; };
+  const rows=(list,depth)=>list.filter(t=>t.type==='header'||!hide||!stateOf(t.stateId).done||hasOpenDesc(t)).map(t=>{
+    const kids=(t.children||[]), pad=depth*14;
+    const caret=kids.length?`<span class="caret" data-act="tglTask" data-id="${t.id}">${t.collapsed?'▶':'▼'}</span>`:`<span class="caret chidden"></span>`;
+    if(t.type==='header'){
+      const r=`<div class="road-row rhead"><div class="road-label" style="padding-left:${8+pad}px">${caret}<b>${esc(t.name||'(section)')}</b></div><div class="road-track" style="width:${trackW}px;${gridBg}"></div></div>`;
+      return r+(kids.length&&!t.collapsed?rows(kids,depth+1):''); }
+    const done=stateOf(t.stateId).done;
+    const r=`<div class="road-row${done?' rdone':''}"><div class="road-label" style="padding-left:${8+pad}px">${caret}<span class="rname">${esc(t.name||'(untitled)')}</span></div><div class="road-track" style="width:${trackW}px;${gridBg}">${pill(t)}</div></div>`;
+    const detail=S.ui.roadOpen===t.id?roadDetailHTML(t):'';
+    return r+detail+(kids.length&&!t.collapsed?rows(kids,depth+1):''); }).join('');
+  const ticks=roadTicks(min,max,px).map(tk=>`<div class="road-tick ${tk.cls||''}" style="left:${tk.x}px"><span>${esc(tk.label)}</span></div>`).join('');
+  const body=S.tasks.length?rows(S.tasks,0):'<div class="road-row"><div class="road-label">&nbsp;</div><div class="road-track" style="width:'+trackW+'px"><div class="empty" style="position:absolute;left:16px;top:8px">No tasks yet — add one, give it a due (and optionally a start) date.</div></div></div>';
+  const todayX=labelW+daysBetween(min,today)*px;
+  return `<div class="road-scroll" id="roadScroll"><div class="road-grid" style="width:${labelW+trackW}px">
+    <div class="road-axis"><div class="road-corner">Lane / task</div><div class="road-axis-track" style="width:${trackW}px;${gridBg}">${ticks}</div></div>
+    ${body}
+    <div class="road-today" id="roadToday" style="left:${todayX}px" title="Today"></div>
+  </div></div>`; }
+function roadDetailHTML(t){ const pr=priorityOf(t.priorityId);
+  return `<div class="road-detail"><div class="rd-card">
+    <div class="rd-row">
+      <span class="prio ${pr?'':'none'}" data-act="cyclePriority" data-id="${t.id}" title="${pr?esc(pr.name):'Set priority'}" ${pr?`style="background:${pr.color}"`:''}>${pr?esc(pr.name.split(' ')[0]):'⚑'}</span>
+      <select class="pillsel" onchange="setTaskState('${t.id}',this.value)" title="Change state">${S.settings.taskStates.map(s=>`<option value="${s.id}" ${s.id===t.stateId?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
+      <input class="tname" value="${esc(t.name)}" placeholder="Task…" data-tname="${t.id}" style="flex:1">
+      <button class="btn sm ghost" data-act="roadClose" title="Close">✕</button>
+    </div>
+    <div class="rd-row">
+      <label class="rd-f">Start <input type="date" data-tstart="${t.id}" value="${esc(t.start||'')}"></label>
+      <label class="rd-f">Due <input type="date" data-tdue="${t.id}" value="${esc(t.due||'')}"></label>
+      <label class="rd-f">Owner <input class="rd-owner" data-towner="${t.id}" value="${esc(t.owner||'')}" list="ownerlist" placeholder="person"></label>
+      <button class="btn sm ghost" data-act="taskTagMenu" data-id="${t.id}" title="Tags">🏷</button>
+      <button class="btn sm ghost" data-act="taskLink" data-id="${t.id}" title="Link">🔗</button>
+    </div>
+    ${((t.tagIds||[]).length||(t.links||[]).length)?`<div class="rd-row rd-tags">${(t.tagIds||[]).map(id=>{const tg=taskTagOf(id);return tg?`<span class="chip" data-act="taskTagMenu" data-id="${t.id}" style="border-color:${tg.color};background:${tg.color}1a">${esc(tg.name)}</span>`:'';}).join('')}${(t.links||[]).map(l=>chipHTML(l,'task:'+t.id)).join('')}</div>`:''}
+    <div class="rd-row"><textarea data-tnotes="${t.id}" placeholder="Notes…">${esc(t.notes||'')}</textarea></div>
+  </div></div>`; }
+function roadApplyScroll(prev){ const sc=$('#roadScroll'); if(!sc) return;
+  if(roadRecenter){ roadRecenter=false; const tl=$('#roadToday'); const x=tl?(parseFloat(tl.style.left)||0):0; sc.scrollLeft=Math.max(0,x-sc.clientWidth/2); }
+  else sc.scrollLeft=prev; }
+ACTIONS.setActionsView=el=>{ S.ui.actionsView=el.dataset.v; if(el.dataset.v==='roadmap') roadRecenter=true; save(); render(); };
+ACTIONS.roadZoom=el=>{ S.ui.roadZoom=el.dataset.z; roadRecenter=true; save(); render(); };
+ACTIONS.roadToday=()=>{ roadRecenter=true; render(); };
+ACTIONS.roadOpen=el=>{ S.ui.roadOpen=(S.ui.roadOpen===el.dataset.id?'':el.dataset.id); save(); render(); };
+ACTIONS.roadClose=()=>{ S.ui.roadOpen=''; save(); render(); };
 function taskListHTML(list,hide,depth){ return list.filter(t=>t.type==='header'||!hide||!stateOf(t.stateId).done||hasOpenDesc(t)).map(t=>taskHTML(t,hide,depth)).join(''); }
 function hasOpenDesc(t){ let open=false; walkTasks(x=>{ if(x.type!=='header'&&!stateOf(x.stateId).done) open=true; },t.children||[]); return open; }
 function taskHTML(t,hide,depth){
