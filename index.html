@@ -348,8 +348,13 @@ input[type=color]{padding:0;width:34px;height:28px;border-radius:6px;cursor:poin
 .road-label .rname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .road-row.rdone .rname{text-decoration:line-through;color:var(--ink-3)}
 .road-track{position:relative;flex:none}
-.road-pill{position:absolute;top:5px;height:20px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;z-index:1;max-width:60vw}
+.road-pill{position:absolute;top:5px;height:20px;display:inline-flex;align-items:center;gap:5px;cursor:grab;z-index:1;max-width:60vw}
+.road-pill:active{cursor:grabbing}
 .road-pill.span{border:1px solid;border-radius:7px;padding:0 7px;box-sizing:border-box;min-width:16px;overflow:hidden}
+.road-pill .rp-grip{position:absolute;top:0;bottom:0;width:7px;cursor:ew-resize;z-index:3}
+.road-pill .rp-grip-l{left:0}
+.road-pill .rp-grip-r{right:0}
+.road-pill.dragging{opacity:.9;box-shadow:0 3px 10px rgba(20,30,40,.25);z-index:6}
 .road-pill .rp-dot{flex:none;width:9px;height:9px;border-radius:50%}
 .road-pill .rp-lab{font-size:11px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .road-pill .rp-lab.out{padding-left:4px;color:var(--ink-2)}
@@ -359,8 +364,8 @@ input[type=color]{padding:0;width:34px;height:28px;border-radius:6px;cursor:poin
 .road-pill.span:hover{box-shadow:0 0 0 2px var(--accent-soft)}
 .road-today{position:absolute;top:0;bottom:0;width:0;border-left:2px solid var(--bad);z-index:2;pointer-events:none}
 .road-today::after{content:'today';position:absolute;top:1px;left:3px;font-size:9px;color:var(--bad);font-weight:700}
-.road-detail{position:sticky;left:0;z-index:4;background:var(--surface);border-bottom:1px solid var(--line)}
-.rd-card{width:min(720px,calc(100vw - 60px));box-sizing:border-box;padding:10px 12px;display:flex;flex-direction:column;gap:8px;border-left:3px solid var(--accent);background:var(--surface-2)}
+.road-detail{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:60;max-width:calc(100vw - 32px)}
+.rd-card{width:min(720px,calc(100vw - 32px));box-sizing:border-box;padding:12px 14px;display:flex;flex-direction:column;gap:9px;border:1px solid var(--line);border-top:3px solid var(--accent);border-radius:12px;background:var(--surface);box-shadow:0 12px 40px rgba(20,30,40,.28)}
 .rd-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .rd-f{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-2)}
 .rd-row textarea{width:100%;min-height:52px;resize:vertical}
@@ -2322,7 +2327,7 @@ function renderRoadmap(hide){
   const gridBg=`background-image:repeating-linear-gradient(90deg,var(--line) 0 1px,transparent 1px ${gridStep}px)`;
   const pill=t=>{ const done=stateOf(t.stateId).done, col=taskColor(t), who=t.owner?' · '+t.owner:'';
     if(t.start&&t.due&&t.due>=t.start){ const x=daysBetween(min,t.start)*px, w=Math.max(px*0.8,daysBetween(t.start,t.due)*px);
-      return `<div class="road-pill span${done?' done':''}" data-act="roadOpen" data-id="${t.id}" style="left:${x}px;width:${w}px;background:${col}26;border-color:${col}" title="${esc(t.name)} · ${t.start} → ${t.due}${esc(who)}"><span class="rp-dot" style="background:${col}"></span><span class="rp-lab">${esc(t.name||'(untitled)')}${esc(who)}</span></div>`; }
+      return `<div class="road-pill span${done?' done':''}" data-act="roadOpen" data-id="${t.id}" style="left:${x}px;width:${w}px;background:${col}26;border-color:${col}" title="${esc(t.name)} · ${t.start} → ${t.due}${esc(who)}"><span class="rp-grip rp-grip-l" title="Drag to change the start date"></span><span class="rp-dot" style="background:${col}"></span><span class="rp-lab">${esc(t.name||'(untitled)')}${esc(who)}</span><span class="rp-grip rp-grip-r" title="Drag to change the due date"></span></div>`; }
     const anchor=t.due||t.start||t.completed; if(!anchor) return '';
     const x=daysBetween(min,anchor)*px;
     return `<div class="road-pill mark${done?' done':''}" data-act="roadOpen" data-id="${t.id}" style="left:${x}px" title="${esc(t.name)} · ${anchor}${esc(who)}"><span class="rp-dot" style="background:${col}"></span><span class="rp-lab out">${esc(t.name||'(untitled)')}${esc(who)}</span></div>`; };
@@ -2334,16 +2339,16 @@ function renderRoadmap(hide){
       return r+(kids.length&&!t.collapsed?rows(kids,depth+1):''); }
     const done=stateOf(t.stateId).done, open=S.ui.roadOpen===t.id;
     const r=`<div class="road-row rtask${done?' rdone':''}${open?' ropen':''}" data-act="roadOpen" data-id="${t.id}" title="Click to edit${(t.start||t.due||t.completed)?'':' / add dates'}"><div class="road-label" style="padding-left:${8+pad}px">${caret}<span class="rname">${esc(t.name||'(untitled)')}</span></div><div class="road-track" style="width:${trackW}px;${gridBg}">${pill(t)}</div></div>`;
-    const detail=S.ui.roadOpen===t.id?roadDetailHTML(t):'';
-    return r+detail+(kids.length&&!t.collapsed?rows(kids,depth+1):''); }).join('');
+    return r+(kids.length&&!t.collapsed?rows(kids,depth+1):''); }).join('');
   const ticks=roadTicks(min,max,px).map(tk=>`<div class="road-tick ${tk.cls||''}" style="left:${tk.x}px"><span>${esc(tk.label)}</span></div>`).join('');
   const body=S.tasks.length?rows(S.tasks,0):'<div class="road-row"><div class="road-label">&nbsp;</div><div class="road-track" style="width:'+trackW+'px"><div class="empty" style="position:absolute;left:16px;top:8px">No tasks yet — add one, give it a due (and optionally a start) date.</div></div></div>';
   const todayX=labelW+daysBetween(min,today)*px;
+  const openT=S.ui.roadOpen?(findTask(S.ui.roadOpen)||{}).t:null; // the detail is a centered pop-up, not an inline row (no reflow, always on-screen)
   return `<div class="road-scroll" id="roadScroll"><div class="road-grid" style="width:${labelW+trackW}px">
     <div class="road-axis"><div class="road-corner">Lane / task</div><div class="road-axis-track" style="width:${trackW}px;${gridBg}">${ticks}</div></div>
     ${body}
     <div class="road-today" id="roadToday" style="left:${todayX}px" title="Today"></div>
-  </div></div>`; }
+  </div></div>${openT?roadDetailHTML(openT):''}`; }
 function roadDetailHTML(t){ const pr=priorityOf(t.priorityId);
   return `<div class="road-detail"><div class="rd-card">
     <div class="rd-row">
@@ -2368,13 +2373,44 @@ function roadApplyScroll(prev){ const sc=$('#roadScroll'); if(!sc) return;
 ACTIONS.setActionsView=el=>{ S.ui.actionsView=el.dataset.v; if(el.dataset.v==='roadmap') roadRecenter=true; save(); render(); };
 ACTIONS.roadZoom=el=>{ S.ui.roadZoom=el.dataset.z; roadRecenter=true; save(); render(); };
 ACTIONS.roadToday=()=>{ roadRecenter=true; render(); };
-ACTIONS.roadOpen=el=>{ S.ui.roadOpen=(S.ui.roadOpen===el.dataset.id?'':el.dataset.id); save(); render(); };
+ACTIONS.roadOpen=el=>{ if(roadSuppressClick){ roadSuppressClick=false; return; } if(S.ui.roadOpen===el.dataset.id) return; S.ui.roadOpen=el.dataset.id; save(); render(); }; // open/switch only; ignore the click a just-finished drag fires
 ACTIONS.roadClose=()=>{ S.ui.roadOpen=''; save(); render(); };
 document.addEventListener('click',e=>{ // click outside the open detail closes it (no need for the ✕)
   if(!S||!S.ui||!S.ui.roadOpen||TAB!=='actions'||S.ui.actionsView!=='roadmap') return;
+  if(roadSuppressClick){ roadSuppressClick=false; return; } // a drag just finished
   if(e.target.closest('.road-detail')||e.target.closest('[data-act]')||e.target.closest('#modal')) return; // in the editor, a button/row, or a spawned modal
   const md=$('#modal'); if(md&&md.open) return; // a tag/link picker is open over it
   S.ui.roadOpen=''; save(); render(); });
+/* drag a roadmap pill to adjust dates: body = move both dates, grips = change start/due */
+let roadDrag=null, roadSuppressClick=false;
+function roadDragStart(e){ roadSuppressClick=false; // any new interaction starts here — clear a stale drag-click guard
+  if(e.button) return; if(!S||TAB!=='actions'||S.ui.actionsView!=='roadmap') return;
+  const pill=e.target.closest('.road-pill'); if(!pill) return;
+  const r=findTask(pill.dataset.id); if(!r) return; const t=r.t, span=!!(t.start&&t.due&&t.due>=t.start);
+  let mode; if(e.target.closest('.rp-grip-l')) mode='start'; else if(e.target.closest('.rp-grip-r')) mode='due';
+  else if(span) mode='move'; else mode=t.due?'due':(t.start?'start':null);
+  if(!mode) return;
+  roadDrag={ id:pill.dataset.id, mode, span, pill, startX:e.clientX, px:roadPx(), moved:false, origLeft:parseFloat(pill.style.left)||0, origWidth:parseFloat(pill.style.width)||0 };
+  document.addEventListener('pointermove',roadDragMove); document.addEventListener('pointerup',roadDragUp,{once:true}); }
+function roadDragMove(e){ if(!roadDrag) return; const dx=e.clientX-roadDrag.startX;
+  if(Math.abs(dx)>3){ roadDrag.moved=true; e.preventDefault(); } if(!roadDrag.moved) return;
+  const px=roadDrag.px, d=Math.round(dx/px), p=roadDrag.pill; p.classList.add('dragging');
+  if(roadDrag.mode==='move') p.style.left=(roadDrag.origLeft+d*px)+'px';
+  else if(roadDrag.mode==='due'){ if(roadDrag.span){ let w=roadDrag.origWidth+d*px; if(w<px*0.5)w=px*0.5; p.style.width=w+'px'; } else p.style.left=(roadDrag.origLeft+d*px)+'px'; }
+  else if(roadDrag.mode==='start'){ if(roadDrag.span){ let sh=d*px, mx=roadDrag.origWidth-px*0.5; if(sh>mx)sh=mx; p.style.left=(roadDrag.origLeft+sh)+'px'; p.style.width=(roadDrag.origWidth-sh)+'px'; } else p.style.left=(roadDrag.origLeft+d*px)+'px'; }
+  const r=findTask(roadDrag.id); if(r){ const t=r.t; let s=t.start,u=t.due;
+    if(roadDrag.mode==='move'){ s=addDays(t.start,d); u=addDays(t.due,d); } else if(roadDrag.mode==='start'){ s=addDays(t.start||t.due,d); if(u&&s>u)s=u; } else { u=addDays(t.due,d); if(roadDrag.span&&u<t.start)u=t.start; }
+    p.title=(s?('start '+s+(u?' · ':'')):'')+(u?('due '+u):''); } }
+function roadDragUp(e){ document.removeEventListener('pointermove',roadDragMove); const dr=roadDrag; roadDrag=null; if(!dr) return;
+  const d=Math.round((e.clientX-dr.startX)/dr.px);
+  if(!dr.moved||d===0){ if(dr.pill) dr.pill.classList.remove('dragging'); return; } // a plain click → let it open the editor
+  roadSuppressClick=true; // the click this drag fires must not open/close the editor
+  const r=findTask(dr.id); if(!r) return; const t=r.t;
+  if(dr.mode==='move'){ t.start=addDays(t.start,d); t.due=addDays(t.due,d); }
+  else if(dr.mode==='start'){ let ns=addDays(t.start||t.due,d); if(t.due&&ns>t.due) ns=t.due; t.start=ns; }
+  else { let nu=addDays(t.due,d); if(dr.span&&nu<t.start) nu=t.start; t.due=nu; }
+  touch(t); save(); render(); }
+document.addEventListener('pointerdown',roadDragStart);
 function taskListHTML(list,hide,depth){ return list.filter(t=>t.type==='header'||!hide||!stateOf(t.stateId).done||hasOpenDesc(t)).map(t=>taskHTML(t,hide,depth)).join(''); }
 function hasOpenDesc(t){ let open=false; walkTasks(x=>{ if(x.type!=='header'&&!stateOf(x.stateId).done) open=true; },t.children||[]); return open; }
 function taskHTML(t,hide,depth){
