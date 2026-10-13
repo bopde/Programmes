@@ -244,13 +244,14 @@ dialog .m-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;bord
 .header-row:hover .rowtools{opacity:1}
 /* due-date cue: subtle tint + coloured left edge, echoing the priority tags */
 .task-row .duewrap{display:inline-flex;align-items:center;gap:4px;border-radius:6px;padding:0 2px}
-/* due-date, graded hot→cool so it reads at a glance; left bar + soft tint + text colour */
-.task-row input[type=date].dd-over {color:var(--due-over); box-shadow:inset 3px 0 0 var(--due-over); background:color-mix(in srgb,var(--due-over) 12%,var(--surface)); font-weight:600}
-.task-row input[type=date].dd-today{color:var(--due-today);box-shadow:inset 3px 0 0 var(--due-today);background:color-mix(in srgb,var(--due-today) 12%,var(--surface));font-weight:600}
-.task-row input[type=date].dd-soon {color:var(--due-soon); box-shadow:inset 3px 0 0 var(--due-soon); background:color-mix(in srgb,var(--due-soon) 13%,var(--surface)); font-weight:600}
-.task-row input[type=date].dd-week {color:var(--due-week); box-shadow:inset 3px 0 0 var(--due-week); background:color-mix(in srgb,var(--due-week) 13%,var(--surface))}
-.task-row input[type=date].dd-next {color:var(--due-next); box-shadow:inset 3px 0 0 var(--due-next); background:color-mix(in srgb,var(--due-next) 12%,var(--surface))}
-.task-row input[type=date].dd-far  {color:var(--due-blue); box-shadow:inset 3px 0 0 var(--due-blue); background:color-mix(in srgb,var(--due-blue) 11%,var(--surface))}
+/* due-date, graded hot→cool AND a progressive fill that grows as the date nears (via --fill) */
+.task-row input[type=date].dd{color:var(--ddc);box-shadow:inset 3px 0 0 var(--ddc);background:linear-gradient(90deg,color-mix(in srgb,var(--ddc) 26%,var(--surface)) var(--fill,0%),transparent var(--fill,0%))}
+.task-row input[type=date].dd-over {--ddc:var(--due-over); font-weight:600}
+.task-row input[type=date].dd-today{--ddc:var(--due-today);font-weight:600}
+.task-row input[type=date].dd-soon {--ddc:var(--due-soon); font-weight:600}
+.task-row input[type=date].dd-week {--ddc:var(--due-week)}
+.task-row input[type=date].dd-next {--ddc:var(--due-next)}
+.task-row input[type=date].dd-far  {--ddc:var(--due-blue)}
 .task-row input[type=date].dd-none {box-shadow:inset 3px 0 0 var(--line)}
 /* start-date — a cooler "when work begins" cue, kept quieter than due */
 .task-row .tstart.st-active{color:var(--due-week);box-shadow:inset 3px 0 0 var(--due-week);background:color-mix(in srgb,var(--due-week) 10%,var(--surface))}
@@ -262,6 +263,7 @@ dialog .m-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;bord
 .task-row .tstart{border-color:transparent;background:transparent;color:var(--ink-2);font-size:12px;width:116px}
 .task-row .tstart:hover{border-color:var(--line)}
 .task-row .tstartwrap{color:var(--ink-3);font-size:12px;white-space:nowrap}
+.task-row .startcol{width:130px;flex:none;display:inline-flex;align-items:center}
 .task-row .startbtn{font-size:11px;color:var(--ink-3);cursor:pointer;opacity:.65;border:1px solid transparent;border-radius:6px;padding:0 4px;white-space:nowrap}
 .task-row .startbtn:hover{border-color:var(--accent);color:var(--accent);opacity:1}
 .tlinks{display:inline-flex;gap:4px;flex-wrap:wrap;max-width:340px}
@@ -363,6 +365,8 @@ input[type=color]{padding:0;width:34px;height:28px;border-radius:6px;cursor:poin
 .road-label .caret{flex:0 0 14px;width:14px;cursor:pointer;color:var(--ink-3);font-size:10px;text-align:center}
 .road-label .caret.chidden{visibility:hidden}
 .road-label .rname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.road-label .rtagdot{flex:none;width:9px;height:9px;border-radius:50%;margin-right:6px}
+.road-label .rtagdot.none{background:transparent;box-shadow:inset 0 0 0 1px var(--line)}
 .road-row.rdone .rname{text-decoration:line-through;color:var(--ink-3)}
 .road-track{position:relative;flex:none}
 .road-pill{position:absolute;top:5px;height:20px;display:inline-flex;align-items:center;gap:5px;cursor:grab;z-index:1;max-width:60vw}
@@ -2296,7 +2300,7 @@ function renderTasks(v){
   ${road?renderRoadmap(hide)
     :week?renderWeekView()
     :`<div class="card"><div class="card-b task-tree" id="ttree">${S.tasks.length?taskListHTML(S.tasks,hide,0):'<div class="empty">No tasks yet. Add one — Enter for the next, Tab to nest. Use + Header to group by programme or workstream.</div>'}</div></div>`}
-  ${road?'<div class="small muted" style="margin-top:8px">Bars run start → due; a lone marker is a due date with no start. Click a bar to edit · click a header caret to fold, shared with the list.</div>'
+  ${road?'<div class="small muted" style="margin-top:8px">Bars run start → due; a lone marker is a due date with no start. Click a bar to edit · click a header caret to fold, shared with the list.</div>'+roadTagKey()
         :'<div class="small muted" style="margin-top:8px">Enter = new task below · Tab / Shift-Tab = nest / un-nest · click the state pill to cycle, the flag to set priority · tasks appear on the calendar by due date and completion date.</div>'+(week?'':dueLegend)}`;
   $('#showDone').onchange=e=>{ S.ui.hideDone=!e.target.checked; save(); render(); };
   if(road) roadApplyScroll(prevScroll, prevScrollTop);
@@ -2332,6 +2336,11 @@ function daysBetween(a,b){ return dnum(b)-dnum(a); }
 function weekStart(ds){ const d=new Date(ds+'T00:00'); d.setDate(d.getDate()-((d.getDay()+6)%7)); return iso(d); }
 function monthStart(ds){ return ds.slice(0,8)+'01'; }
 function taskColor(t){ return (stateOf(t.stateId)||{}).color||'var(--ink-3)'; } // colour roadmap pills by task state
+function taskTagDot(t){ const tg=taskTagOf((t.tagIds||[])[0]); return tg?`<span class="rtagdot" style="background:${tg.color}" title="${esc(tg.name)}"></span>`:'<span class="rtagdot none"></span>'; } // small circle = first tag's colour
+function roadTagKey(){ const used=new Set(); walkTasks(t=>{ if(t.type!=='header') (t.tagIds||[]).forEach(id=>used.add(id)); });
+  const tags=(S.settings.taskTags||[]).filter(tg=>used.has(tg.id)); if(!tags.length) return '';
+  return `<div class="small muted" style="margin-top:6px;display:flex;gap:12px;flex-wrap:wrap;align-items:center"><span>Tags</span>`
+    +tags.map(tg=>`<span class="duekey"><i style="background:${tg.color};border-radius:50%"></i>${esc(tg.name)}</span>`).join('')+`</div>`; }
 function roadRange(){ let lo=null,hi=null; const add=ds=>{ if(!ds) return; if(lo===null||ds<lo) lo=ds; if(hi===null||ds>hi) hi=ds; };
   walkTasks(t=>{ if(t.type==='header') return; add(t.start); add(t.due); add(t.completed); });
   const today=todayStr(); add(today); if(!lo) lo=today; if(!hi) hi=today;
@@ -2363,7 +2372,7 @@ function renderRoadmap(hide){
       const r=`<div class="road-row rhead"><div class="road-label" style="padding-left:${8+pad}px">${caret}<b>${esc(t.name||'(section)')}</b></div><div class="road-track" style="width:${trackW}px;${gridBg}"></div></div>`;
       return r+(kids.length&&!t.collapsed?rows(kids,depth+1):''); }
     const done=stateOf(t.stateId).done, open=S.ui.roadOpen===t.id;
-    const r=`<div class="road-row rtask${done?' rdone':''}${open?' ropen':''}" data-act="roadOpen" data-id="${t.id}" title="Click to edit${(t.start||t.due||t.completed)?'':' / add dates'}"><div class="road-label" style="padding-left:${8+pad}px">${caret}<span class="rname">${esc(t.name||'(untitled)')}</span></div><div class="road-track" style="width:${trackW}px;${gridBg}">${pill(t)}</div></div>`;
+    const r=`<div class="road-row rtask${done?' rdone':''}${open?' ropen':''}" data-act="roadOpen" data-id="${t.id}" title="Click to edit${(t.start||t.due||t.completed)?'':' / add dates'}"><div class="road-label" style="padding-left:${8+pad}px">${caret}${taskTagDot(t)}<span class="rname">${esc(t.name||'(untitled)')}</span></div><div class="road-track" style="width:${trackW}px;${gridBg}">${pill(t)}</div></div>`;
     return r+(kids.length&&!t.collapsed?rows(kids,depth+1):''); }).join('');
   const ticks=roadTicks(min,max,px).map(tk=>`<div class="road-tick ${tk.cls||''}" style="left:${tk.x}px"><span>${esc(tk.label)}</span></div>`).join('');
   const body=S.tasks.length?rows(S.tasks,0):'<div class="road-row"><div class="road-label">&nbsp;</div><div class="road-track" style="width:'+trackW+'px"><div class="empty" style="position:absolute;left:16px;top:8px">No tasks yet — add one, give it a due (and optionally a start) date.</div></div></div>';
@@ -2465,9 +2474,8 @@ function taskHTML(t,hide,depth){
       <select class="pillsel" onchange="setTaskState('${t.id}',this.value)" style="background:${st.color}1c;color:${st.color};border-color:${st.color}55" title="Change state — pick any, including back to To do">${S.settings.taskStates.map(s=>`<option value="${s.id}" ${s.id===t.stateId?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
       <input class="tname" value="${esc(t.name)}" placeholder="Task…" data-tname="${t.id}">
       ${t.lastActioned?`<span class="tedited" title="Last actioned ${esc(dstr(t.lastActioned))}">↻ ${esc(dstr(t.lastActioned))}</span>`:''}
-      <span class="tlinks">${(t.tagIds||[]).map(id=>{const tg=taskTagOf(id);return tg?`<span class="chip" data-act="taskTagMenu" data-id="${t.id}" style="border-color:${tg.color};background:${tg.color}1a">${esc(tg.name)}</span>`:'';}).join('')}${(t.links||[]).map(l=>chipHTML(l,'task:'+t.id)).join('')}</span>
+      <span class="tlinks">${(t.tagIds||[]).map(id=>{const tg=taskTagOf(id);return tg?`<span class="chip" data-act="taskTagMenu" data-id="${t.id}" style="border-color:${tg.color};background:${tg.color}1a">${esc(tg.name)}</span>`:'';}).join('')}${(t.links||[]).map(l=>chipHTML(l,'task:'+t.id)).join('')}${(t.notes||t.showNotes)?`<span class="notebtn ${t.showNotes?'open':''}" data-act="taskNotes" data-id="${t.id}" title="Notes — click to ${t.showNotes?'hide':'view'}">🗒 ${t.showNotes?'▾':'▸'}</span>`:''}</span>
       <span class="trowfill"></span>
-      ${(t.notes||t.showNotes)?`<span class="notebtn ${t.showNotes?'open':''}" data-act="taskNotes" data-id="${t.id}" title="Notes — click to ${t.showNotes?'hide':'view'}">🗒 ${t.showNotes?'▾':'▸'}</span>`:''}
       <span class="meta">
         <input class="towner" value="${esc(t.owner||'')}" placeholder="owner" data-towner="${t.id}" title="Owner / person" list="ownerlist">
         <span class="rowtools">
@@ -2476,10 +2484,10 @@ function taskHTML(t,hide,depth){
           <button class="btn sm ghost" data-act="taskNotes" data-id="${t.id}" title="Notes">🗒</button>
           <button class="btn sm ghost danger" data-act="delTask" data-id="${t.id}" title="Delete">✕</button>
         </span>
-        ${(t.start||t.showStart)
+        <span class="startcol">${(t.start||t.showStart)
           ? `<span class="tstartwrap" title="${esc(startTitle(t.start))}">⇤ <input type="date" class="tstart ${startClass(t.start,st.done)}" value="${esc(t.start||'')}" data-tstart="${t.id}"></span>`
-          : `<span class="startbtn" data-act="tglStart" data-id="${t.id}" title="Add a start date — turns this into a span on the roadmap">⇤📅</span>`}
-        <input type="date" class="${dueCls}" value="${esc(t.due||'')}" data-tdue="${t.id}" title="${esc(dueTitle(t.due))}">
+          : `<span class="startbtn" data-act="tglStart" data-id="${t.id}" title="Add a start date — turns this into a span on the roadmap">⇤📅</span>`}</span>
+        <input type="date" class="${dueCls}" value="${esc(t.due||'')}" data-tdue="${t.id}" title="${esc(dueTitle(t.due))}" style="--fill:${dueFill(t.due,st.done)}%">
       </span>
     </div>
     ${t.showNotes?`<div class="task-notes"><textarea data-tnotes="${t.id}" placeholder="Notes…">${esc(t.notes||'')}</textarea></div>`:''}
@@ -2488,8 +2496,10 @@ function taskHTML(t,hide,depth){
 }
 function addDays(ds,n){ const d=new Date(ds+'T00:00'); d.setDate(d.getDate()+n); return iso(d); }
 function dueClass(due,done){ if(!due||done) return 'dd-none';
-  const t=todayStr(); if(due<t) return 'dd-over'; const d=daysBetween(t,due);
-  if(d===0) return 'dd-today'; if(d<=3) return 'dd-soon'; if(d<=7) return 'dd-week'; if(d<=14) return 'dd-next'; return 'dd-far'; }
+  const t=todayStr(); if(due<t) return 'dd dd-over'; const d=daysBetween(t,due);
+  if(d===0) return 'dd dd-today'; if(d<=3) return 'dd dd-soon'; if(d<=7) return 'dd dd-week'; if(d<=14) return 'dd dd-next'; return 'dd dd-far'; }
+function dueFill(due,done){ if(!due||done) return 0; const d=daysBetween(todayStr(),due); // bar fills 8%→100% as the date nears (horizon ~4 weeks)
+  if(d<=0) return 100; return Math.max(8,Math.min(100,Math.round((1-d/28)*100))); }
 function startClass(start,done){ if(!start||done) return '';
   const d=daysBetween(todayStr(),start); if(d<=0) return 'st-active'; if(d<=7) return 'st-soon'; return 'st-later'; }
 function dueTitle(due){ if(!due) return 'Due date'; const d=daysBetween(todayStr(),due);
