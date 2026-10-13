@@ -26,6 +26,13 @@
   --warn-soft:#fdf1e3;
   --bad:      #b3423a;
   --bad-soft: #f9e9e8;
+  /* due-date "time to go" scale (hot = urgent → cool = far) */
+  --due-over: #c62828;   /* overdue — bright red */
+  --due-today:#d84315;   /* due today — red-orange */
+  --due-soon: #c9741a;   /* next few days — orange */
+  --due-week: #3f8f52;   /* within the week — green */
+  --due-next: #2f8fa6;   /* a week-plus out — teal */
+  --due-blue: #3b6fb0;   /* well out — blue */
   --sel:      #eef3f7;
   --shadow: 0 1px 2px rgba(34,48,62,.06), 0 4px 16px rgba(34,48,62,.05);
   --radius: 10px;
@@ -237,10 +244,20 @@ dialog .m-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;bord
 .header-row:hover .rowtools{opacity:1}
 /* due-date cue: subtle tint + coloured left edge, echoing the priority tags */
 .task-row .duewrap{display:inline-flex;align-items:center;gap:4px;border-radius:6px;padding:0 2px}
-.task-row input[type=date].due-over{background:var(--bad-soft);box-shadow:inset 3px 0 0 var(--bad);color:var(--bad);font-weight:600}
-.task-row input[type=date].due-soon{background:var(--warn-soft);box-shadow:inset 3px 0 0 var(--warn);color:var(--warn);font-weight:600}
-.task-row input[type=date].due-near{background:var(--good-soft);box-shadow:inset 3px 0 0 var(--good)}
-.task-row input[type=date].due-far{box-shadow:inset 3px 0 0 var(--line)}
+/* due-date, graded hot→cool so it reads at a glance; left bar + soft tint + text colour */
+.task-row input[type=date].dd-over {color:var(--due-over); box-shadow:inset 3px 0 0 var(--due-over); background:color-mix(in srgb,var(--due-over) 12%,var(--surface)); font-weight:600}
+.task-row input[type=date].dd-today{color:var(--due-today);box-shadow:inset 3px 0 0 var(--due-today);background:color-mix(in srgb,var(--due-today) 12%,var(--surface));font-weight:600}
+.task-row input[type=date].dd-soon {color:var(--due-soon); box-shadow:inset 3px 0 0 var(--due-soon); background:color-mix(in srgb,var(--due-soon) 13%,var(--surface)); font-weight:600}
+.task-row input[type=date].dd-week {color:var(--due-week); box-shadow:inset 3px 0 0 var(--due-week); background:color-mix(in srgb,var(--due-week) 13%,var(--surface))}
+.task-row input[type=date].dd-next {color:var(--due-next); box-shadow:inset 3px 0 0 var(--due-next); background:color-mix(in srgb,var(--due-next) 12%,var(--surface))}
+.task-row input[type=date].dd-far  {color:var(--due-blue); box-shadow:inset 3px 0 0 var(--due-blue); background:color-mix(in srgb,var(--due-blue) 11%,var(--surface))}
+.task-row input[type=date].dd-none {box-shadow:inset 3px 0 0 var(--line)}
+/* start-date — a cooler "when work begins" cue, kept quieter than due */
+.task-row .tstart.st-active{color:var(--due-week);box-shadow:inset 3px 0 0 var(--due-week);background:color-mix(in srgb,var(--due-week) 10%,var(--surface))}
+.task-row .tstart.st-soon  {color:var(--due-blue);box-shadow:inset 3px 0 0 var(--due-blue);background:color-mix(in srgb,var(--due-blue) 10%,var(--surface))}
+.task-row .tstart.st-later {color:var(--ink-2);box-shadow:inset 3px 0 0 color-mix(in srgb,var(--due-blue) 45%,var(--line))}
+.duekey{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.duekey i{width:9px;height:9px;border-radius:2px;display:inline-block}
 .task-row .tedited{font-size:11px;color:var(--ink-3);white-space:nowrap;flex:none;margin-right:2px}
 .task-row .tstart{border-color:transparent;background:transparent;color:var(--ink-2);font-size:12px;width:116px}
 .task-row .tstart:hover{border-color:var(--line)}
@@ -2253,6 +2270,14 @@ const prioRank=id=>{ const i=(S.settings.taskPriorities||[]).findIndex(p=>p.id==
 
 function renderTasks(v){
   const hide=S.ui.hideDone, week=S.ui.taskWeekOnly, road=S.ui.actionsView==='roadmap';
+  const dueLegend=`<div class="small muted" style="margin-top:6px;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+    <span>Due date</span>
+    <span class="duekey"><i style="background:var(--due-over)"></i>overdue</span>
+    <span class="duekey"><i style="background:var(--due-today)"></i>today</span>
+    <span class="duekey"><i style="background:var(--due-soon)"></i>few days</span>
+    <span class="duekey"><i style="background:var(--due-week)"></i>this week</span>
+    <span class="duekey"><i style="background:var(--due-next)"></i>1–2 weeks</span>
+    <span class="duekey"><i style="background:var(--due-blue)"></i>later</span></div>`;
   const _rsc=$('#roadScroll'), prevScroll=(_rsc&&_rsc.scrollLeft)||0, prevScrollTop=(_rsc&&_rsc.scrollTop)||0;
   const owners=[...new Set([]. concat(...collectTasks().map(t=>t.owner).filter(Boolean)))];
   v.innerHTML=`<div class="toolbar">
@@ -2272,7 +2297,7 @@ function renderTasks(v){
     :week?renderWeekView()
     :`<div class="card"><div class="card-b task-tree" id="ttree">${S.tasks.length?taskListHTML(S.tasks,hide,0):'<div class="empty">No tasks yet. Add one — Enter for the next, Tab to nest. Use + Header to group by programme or workstream.</div>'}</div></div>`}
   ${road?'<div class="small muted" style="margin-top:8px">Bars run start → due; a lone marker is a due date with no start. Click a bar to edit · click a header caret to fold, shared with the list.</div>'
-        :'<div class="small muted" style="margin-top:8px">Enter = new task below · Tab / Shift-Tab = nest / un-nest · click the state pill to cycle, the flag to set priority · tasks appear on the calendar by due date and completion date.</div>'}`;
+        :'<div class="small muted" style="margin-top:8px">Enter = new task below · Tab / Shift-Tab = nest / un-nest · click the state pill to cycle, the flag to set priority · tasks appear on the calendar by due date and completion date.</div>'+(week?'':dueLegend)}`;
   $('#showDone').onchange=e=>{ S.ui.hideDone=!e.target.checked; save(); render(); };
   if(road) roadApplyScroll(prevScroll, prevScrollTop);
   ownerDatalist(); // build the owner autocomplete now, not only after focusing a task
@@ -2452,9 +2477,9 @@ function taskHTML(t,hide,depth){
           <button class="btn sm ghost danger" data-act="delTask" data-id="${t.id}" title="Delete">✕</button>
         </span>
         ${(t.start||t.showStart)
-          ? `<span class="tstartwrap" title="Start date — when work begins (shows the task as a span on the roadmap)">⇤ <input type="date" class="tstart" value="${esc(t.start||'')}" data-tstart="${t.id}"></span>`
+          ? `<span class="tstartwrap" title="${esc(startTitle(t.start))}">⇤ <input type="date" class="tstart ${startClass(t.start,st.done)}" value="${esc(t.start||'')}" data-tstart="${t.id}"></span>`
           : `<span class="startbtn" data-act="tglStart" data-id="${t.id}" title="Add a start date — turns this into a span on the roadmap">⇤📅</span>`}
-        <input type="date" class="${dueCls}" value="${esc(t.due||'')}" data-tdue="${t.id}" title="Due date">
+        <input type="date" class="${dueCls}" value="${esc(t.due||'')}" data-tdue="${t.id}" title="${esc(dueTitle(t.due))}">
       </span>
     </div>
     ${t.showNotes?`<div class="task-notes"><textarea data-tnotes="${t.id}" placeholder="Notes…">${esc(t.notes||'')}</textarea></div>`:''}
@@ -2462,8 +2487,15 @@ function taskHTML(t,hide,depth){
   </div>`;
 }
 function addDays(ds,n){ const d=new Date(ds+'T00:00'); d.setDate(d.getDate()+n); return iso(d); }
-function dueClass(due,done){ if(!due||done) return 'due-far';
-  const t=todayStr(); if(due<t) return 'due-over'; if(due<=addDays(t,3)) return 'due-soon'; if(due<=addDays(t,14)) return 'due-near'; return 'due-far'; }
+function dueClass(due,done){ if(!due||done) return 'dd-none';
+  const t=todayStr(); if(due<t) return 'dd-over'; const d=daysBetween(t,due);
+  if(d===0) return 'dd-today'; if(d<=3) return 'dd-soon'; if(d<=7) return 'dd-week'; if(d<=14) return 'dd-next'; return 'dd-far'; }
+function startClass(start,done){ if(!start||done) return '';
+  const d=daysBetween(todayStr(),start); if(d<=0) return 'st-active'; if(d<=7) return 'st-soon'; return 'st-later'; }
+function dueTitle(due){ if(!due) return 'Due date'; const d=daysBetween(todayStr(),due);
+  if(d<0) return 'Overdue by '+(-d)+(-d===1?' day':' days'); if(d===0) return 'Due today'; return 'Due in '+d+(d===1?' day':' days'); }
+function startTitle(start){ if(!start) return 'Start date — when work begins'; const d=daysBetween(todayStr(),start);
+  if(d<0) return 'Started '+(-d)+(-d===1?' day':' days')+' ago'; if(d===0) return 'Starts today'; return 'Starts in '+d+(d===1?' day':' days'); }
 function isEmptyTask(t){ return t.type==='task' && !(t.name||'').trim() && !(t.notes||'').trim() && !t.due && !t.start && !(t.owner||'').trim()
   && !(t.links||[]).length && !(t.tagIds||[]).length && !t.priorityId && (!t.children||!t.children.length)
   && t.stateId===(S.settings.taskStates[0]||{}).id; }
