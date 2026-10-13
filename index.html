@@ -336,6 +336,10 @@ input[type=color]{padding:0;width:34px;height:28px;border-radius:6px;cursor:poin
 .road-tick.q{border-left-color:var(--ink-3)}
 .road-tick.we{background:color-mix(in srgb,var(--ink-3) 6%,transparent)}
 .road-row{display:flex;align-items:stretch;min-height:30px;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
+.road-row.rtask{cursor:pointer}
+.road-row.rtask:hover .road-label{background:var(--sel)}
+.road-row.ropen .road-label{background:var(--accent-soft)}
+.road-row.ropen .road-track{background:color-mix(in srgb,var(--accent) 5%,transparent)}
 .road-label{position:sticky;left:0;z-index:3;width:240px;min-width:240px;box-sizing:border-box;display:flex;align-items:center;gap:4px;padding:4px 8px;background:var(--surface);border-right:1px solid var(--line);font-size:13px}
 .road-row.rhead .road-label{background:color-mix(in srgb,var(--accent) 10%,var(--surface))}
 .road-row.rhead .road-track{background:color-mix(in srgb,var(--accent) 6%,transparent)}
@@ -2328,8 +2332,8 @@ function renderRoadmap(hide){
     if(t.type==='header'){
       const r=`<div class="road-row rhead"><div class="road-label" style="padding-left:${8+pad}px">${caret}<b>${esc(t.name||'(section)')}</b></div><div class="road-track" style="width:${trackW}px;${gridBg}"></div></div>`;
       return r+(kids.length&&!t.collapsed?rows(kids,depth+1):''); }
-    const done=stateOf(t.stateId).done;
-    const r=`<div class="road-row${done?' rdone':''}"><div class="road-label" style="padding-left:${8+pad}px">${caret}<span class="rname">${esc(t.name||'(untitled)')}</span></div><div class="road-track" style="width:${trackW}px;${gridBg}">${pill(t)}</div></div>`;
+    const done=stateOf(t.stateId).done, open=S.ui.roadOpen===t.id;
+    const r=`<div class="road-row rtask${done?' rdone':''}${open?' ropen':''}" data-act="roadOpen" data-id="${t.id}" title="Click to edit${(t.start||t.due||t.completed)?'':' / add dates'}"><div class="road-label" style="padding-left:${8+pad}px">${caret}<span class="rname">${esc(t.name||'(untitled)')}</span></div><div class="road-track" style="width:${trackW}px;${gridBg}">${pill(t)}</div></div>`;
     const detail=S.ui.roadOpen===t.id?roadDetailHTML(t):'';
     return r+detail+(kids.length&&!t.collapsed?rows(kids,depth+1):''); }).join('');
   const ticks=roadTicks(min,max,px).map(tk=>`<div class="road-tick ${tk.cls||''}" style="left:${tk.x}px"><span>${esc(tk.label)}</span></div>`).join('');
@@ -2366,6 +2370,11 @@ ACTIONS.roadZoom=el=>{ S.ui.roadZoom=el.dataset.z; roadRecenter=true; save(); re
 ACTIONS.roadToday=()=>{ roadRecenter=true; render(); };
 ACTIONS.roadOpen=el=>{ S.ui.roadOpen=(S.ui.roadOpen===el.dataset.id?'':el.dataset.id); save(); render(); };
 ACTIONS.roadClose=()=>{ S.ui.roadOpen=''; save(); render(); };
+document.addEventListener('click',e=>{ // click outside the open detail closes it (no need for the ✕)
+  if(!S||!S.ui||!S.ui.roadOpen||TAB!=='actions'||S.ui.actionsView!=='roadmap') return;
+  if(e.target.closest('.road-detail')||e.target.closest('[data-act]')||e.target.closest('#modal')) return; // in the editor, a button/row, or a spawned modal
+  const md=$('#modal'); if(md&&md.open) return; // a tag/link picker is open over it
+  S.ui.roadOpen=''; save(); render(); });
 function taskListHTML(list,hide,depth){ return list.filter(t=>t.type==='header'||!hide||!stateOf(t.stateId).done||hasOpenDesc(t)).map(t=>taskHTML(t,hide,depth)).join(''); }
 function hasOpenDesc(t){ let open=false; walkTasks(x=>{ if(x.type!=='header'&&!stateOf(x.stateId).done) open=true; },t.children||[]); return open; }
 function taskHTML(t,hide,depth){
