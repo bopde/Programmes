@@ -215,7 +215,8 @@ dialog .m-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;bord
 .task-row .caret{flex:0 0 16px;width:16px;min-width:16px;height:18px;display:inline-flex;align-items:center;justify-content:center;color:var(--ink-3);cursor:pointer;border-radius:5px;font-size:10px}
 .task-row .caret:hover{background:var(--sel);color:var(--ink)}
 .task-row .caret.chidden{visibility:hidden}
-.task-row input.tname{flex:1;border-color:transparent;background:transparent;min-width:140px}
+.task-row input.tname{field-sizing:content;flex:0 1 auto;border-color:transparent;background:transparent;min-width:140px;max-width:46ch}
+.task-row .trowfill{flex:1;min-width:8px}
 .task-row input.tname:focus{border-color:var(--accent);background:var(--surface)}
 .task-row.done input.tname{color:var(--ink-3);text-decoration:line-through}
 .task-row .meta{display:flex;align-items:center;gap:6px;flex:none}
@@ -240,8 +241,7 @@ dialog .m-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;bord
 .task-row input[type=date].due-soon{background:var(--warn-soft);box-shadow:inset 3px 0 0 var(--warn);color:var(--warn);font-weight:600}
 .task-row input[type=date].due-near{background:var(--good-soft);box-shadow:inset 3px 0 0 var(--good)}
 .task-row input[type=date].due-far{box-shadow:inset 3px 0 0 var(--line)}
-.task-row .tlast{border-color:transparent;background:transparent;color:var(--ink-3);font-size:12px;width:116px}
-.task-row .tlast:hover{border-color:var(--line)}
+.task-row .tedited{font-size:11px;color:var(--ink-3);white-space:nowrap;flex:none;margin-right:2px}
 .task-row .tstart{border-color:transparent;background:transparent;color:var(--ink-2);font-size:12px;width:116px}
 .task-row .tstart:hover{border-color:var(--line)}
 .task-row .tstartwrap{color:var(--ink-3);font-size:12px;white-space:nowrap}
@@ -2297,7 +2297,7 @@ function dnum(ds){ return Math.round(new Date(ds+'T00:00').getTime()/86400000); 
 function daysBetween(a,b){ return dnum(b)-dnum(a); }
 function weekStart(ds){ const d=new Date(ds+'T00:00'); d.setDate(d.getDate()-((d.getDay()+6)%7)); return iso(d); }
 function monthStart(ds){ return ds.slice(0,8)+'01'; }
-function taskColor(t){ const tg=taskTagOf((t.tagIds||[])[0]); return tg?tg.color:'var(--ink-3)'; } // colour pills by first tag (de-facto workstream)
+function taskColor(t){ return (stateOf(t.stateId)||{}).color||'var(--ink-3)'; } // colour roadmap pills by task state
 function roadRange(){ let lo=null,hi=null; const add=ds=>{ if(!ds) return; if(lo===null||ds<lo) lo=ds; if(hi===null||ds>hi) hi=ds; };
   walkTasks(t=>{ if(t.type==='header') return; add(t.start); add(t.due); add(t.completed); });
   const today=todayStr(); add(today); if(!lo) lo=today; if(!hi) hi=today;
@@ -2382,8 +2382,6 @@ function taskHTML(t,hide,depth){
         <span class="rowtools">
           <button class="btn sm ghost" data-act="addSub" data-id="${t.id}" title="Add task inside">＋ task</button>
           <button class="btn sm ghost" data-act="addSubHeader" data-id="${t.id}" title="Add sub-header inside">＋ header</button>
-          <button class="btn sm ghost" data-act="outdentTask" data-id="${t.id}" title="Un-nest">⇤</button>
-          <button class="btn sm ghost" data-act="indentTask" data-id="${t.id}" title="Nest">⇥</button>
           <button class="btn sm ghost danger" data-act="delTask" data-id="${t.id}" title="Delete">✕</button>
         </span></div>${kidsHTML}</div>`;
   }
@@ -2395,7 +2393,9 @@ function taskHTML(t,hide,depth){
       <span class="prio ${pr?'':'none'}" data-act="cyclePriority" data-id="${t.id}" title="${pr?esc(pr.name):'Set priority'}" ${pr?`style="background:${pr.color}"`:''}>${pr?esc(pr.name.split(' ')[0]):'⚑'}</span>
       <select class="pillsel" onchange="setTaskState('${t.id}',this.value)" style="background:${st.color}1c;color:${st.color};border-color:${st.color}55" title="Change state — pick any, including back to To do">${S.settings.taskStates.map(s=>`<option value="${s.id}" ${s.id===t.stateId?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
       <input class="tname" value="${esc(t.name)}" placeholder="Task…" data-tname="${t.id}">
+      ${t.lastActioned?`<span class="tedited" title="Last actioned ${esc(dstr(t.lastActioned))}">↻ ${esc(dstr(t.lastActioned))}</span>`:''}
       <span class="tlinks">${(t.tagIds||[]).map(id=>{const tg=taskTagOf(id);return tg?`<span class="chip" data-act="taskTagMenu" data-id="${t.id}" style="border-color:${tg.color};background:${tg.color}1a">${esc(tg.name)}</span>`:'';}).join('')}${(t.links||[]).map(l=>chipHTML(l,'task:'+t.id)).join('')}</span>
+      <span class="trowfill"></span>
       ${(t.notes||t.showNotes)?`<span class="notebtn ${t.showNotes?'open':''}" data-act="taskNotes" data-id="${t.id}" title="Notes — click to ${t.showNotes?'hide':'view'}">🗒 ${t.showNotes?'▾':'▸'}</span>`:''}
       <span class="meta">
         <input class="towner" value="${esc(t.owner||'')}" placeholder="owner" data-towner="${t.id}" title="Owner / person" list="ownerlist">
@@ -2403,16 +2403,12 @@ function taskHTML(t,hide,depth){
           <button class="btn sm ghost" data-act="taskTagMenu" data-id="${t.id}" title="Tags">🏷</button>
           <button class="btn sm ghost" data-act="taskLink" data-id="${t.id}" title="Link to contract / PO / event / budget…">🔗</button>
           <button class="btn sm ghost" data-act="taskNotes" data-id="${t.id}" title="Notes">🗒</button>
-          <button class="btn sm ghost" data-act="addSub" data-id="${t.id}" title="Add sub-task">＋</button>
-          <button class="btn sm ghost" data-act="outdentTask" data-id="${t.id}" title="Un-nest">⇤</button>
-          <button class="btn sm ghost" data-act="indentTask" data-id="${t.id}" title="Nest under task above">⇥</button>
           <button class="btn sm ghost danger" data-act="delTask" data-id="${t.id}" title="Delete">✕</button>
         </span>
         ${(t.start||t.showStart)
           ? `<span class="tstartwrap" title="Start date — when work begins (shows the task as a span on the roadmap)">⇤ <input type="date" class="tstart" value="${esc(t.start||'')}" data-tstart="${t.id}"></span>`
           : `<span class="startbtn" data-act="tglStart" data-id="${t.id}" title="Add a start date — turns this into a span on the roadmap">⇤📅</span>`}
         <input type="date" class="${dueCls}" value="${esc(t.due||'')}" data-tdue="${t.id}" title="Due date">
-        <span title="Last actioned — edit if you followed up on a different day">↻ <input type="date" class="tlast" value="${esc(t.lastActioned||'')}" data-tlast="${t.id}"></span>
       </span>
     </div>
     ${t.showNotes?`<div class="task-notes"><textarea data-tnotes="${t.id}" placeholder="Notes…">${esc(t.notes||'')}</textarea></div>`:''}
@@ -2484,7 +2480,6 @@ document.addEventListener('change',e=>{
   const ds=e.target.closest('[data-tstart]'); if(ds){ const r=findTask(ds.dataset.tstart); if(r){ r.t.start=ds.value; if(!r.t.start) r.t.showStart=false; touch(r.t); save(); renderKeepFocus(); } return; }
   const d=e.target.closest('[data-tdue]'); if(d){ const r=findTask(d.dataset.tdue); if(r){ r.t.due=d.value; touch(r.t); save(); renderKeepFocus(); } return; }
   const o=e.target.closest('[data-towner]'); if(o){ const r=findTask(o.dataset.towner); if(r){ r.t.owner=o.value; touch(r.t); save(); ownerDatalist(); } return; }
-  const la=e.target.closest('[data-tlast]'); if(la){ const r=findTask(la.dataset.tlast); if(r){ r.t.lastActioned=la.value; save(); } return; }
   const x=e.target.closest('[data-tnotes]'); if(x){ const r=findTask(x.dataset.tnotes); if(r){ r.t.notes=x.value; touch(r.t); save(); } return; }
 });
 document.addEventListener('keydown',e=>{
