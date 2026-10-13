@@ -2253,7 +2253,7 @@ const prioRank=id=>{ const i=(S.settings.taskPriorities||[]).findIndex(p=>p.id==
 
 function renderTasks(v){
   const hide=S.ui.hideDone, week=S.ui.taskWeekOnly, road=S.ui.actionsView==='roadmap';
-  const prevScroll=(($('#roadScroll')||{}).scrollLeft)||0;
+  const _rsc=$('#roadScroll'), prevScroll=(_rsc&&_rsc.scrollLeft)||0, prevScrollTop=(_rsc&&_rsc.scrollTop)||0;
   const owners=[...new Set([]. concat(...collectTasks().map(t=>t.owner).filter(Boolean)))];
   v.innerHTML=`<div class="toolbar">
     <button class="btn sm primary" data-act="addTask">+ Task</button>
@@ -2274,7 +2274,7 @@ function renderTasks(v){
   ${road?'<div class="small muted" style="margin-top:8px">Bars run start → due; a lone marker is a due date with no start. Click a bar to edit · click a header caret to fold, shared with the list.</div>'
         :'<div class="small muted" style="margin-top:8px">Enter = new task below · Tab / Shift-Tab = nest / un-nest · click the state pill to cycle, the flag to set priority · tasks appear on the calendar by due date and completion date.</div>'}`;
   $('#showDone').onchange=e=>{ S.ui.hideDone=!e.target.checked; save(); render(); };
-  if(road) roadApplyScroll(prevScroll);
+  if(road) roadApplyScroll(prevScroll, prevScrollTop);
   ownerDatalist(); // build the owner autocomplete now, not only after focusing a task
 }
 function collectTasks(){ const out=[]; walkTasks(t=>{ if(t.type!=='header') out.push(t); }); return out; }
@@ -2367,9 +2367,10 @@ function roadDetailHTML(t){ const pr=priorityOf(t.priorityId);
     ${((t.tagIds||[]).length||(t.links||[]).length)?`<div class="rd-row rd-tags">${(t.tagIds||[]).map(id=>{const tg=taskTagOf(id);return tg?`<span class="chip" data-act="taskTagMenu" data-id="${t.id}" style="border-color:${tg.color};background:${tg.color}1a">${esc(tg.name)}</span>`:'';}).join('')}${(t.links||[]).map(l=>chipHTML(l,'task:'+t.id)).join('')}</div>`:''}
     <div class="rd-row"><textarea data-tnotes="${t.id}" placeholder="Notes…">${esc(t.notes||'')}</textarea></div>
   </div></div>`; }
-function roadApplyScroll(prev){ const sc=$('#roadScroll'); if(!sc) return;
+function roadApplyScroll(prev, prevTop){ const sc=$('#roadScroll'); if(!sc) return;
   if(roadRecenter){ roadRecenter=false; const tl=$('#roadToday'); const x=tl?(parseFloat(tl.style.left)||0):0; sc.scrollLeft=Math.max(0,x-sc.clientWidth/2); }
-  else sc.scrollLeft=prev; }
+  else sc.scrollLeft=prev;
+  sc.scrollTop=prevTop||0; } // keep the vertical position too, so opening/editing a task never jumps the list
 ACTIONS.setActionsView=el=>{ S.ui.actionsView=el.dataset.v; if(el.dataset.v==='roadmap') roadRecenter=true; save(); render(); };
 ACTIONS.roadZoom=el=>{ S.ui.roadZoom=el.dataset.z; roadRecenter=true; save(); render(); };
 ACTIONS.roadToday=()=>{ roadRecenter=true; render(); };
