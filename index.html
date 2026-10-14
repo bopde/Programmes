@@ -33,6 +33,7 @@
   --due-week: #3f8f52;   /* within the week — green */
   --due-next: #2f8fa6;   /* a week-plus out — teal */
   --due-blue: #3b6fb0;   /* well out — blue */
+  --weekend:  rgba(91,107,122,.09); /* Sat/Sun column shading on the roadmap */
   --sel:      #eef3f7;
   --shadow: 0 1px 2px rgba(34,48,62,.06), 0 4px 16px rgba(34,48,62,.05);
   --radius: 10px;
@@ -276,6 +277,7 @@ dialog .m-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;bord
 .task-row .towner:hover{border-color:var(--line)}
 .task-row .towner:focus{border-color:var(--accent);background:var(--surface)}
 .header-row{margin-top:10px;border-bottom:1px solid var(--line);border-radius:0;padding-bottom:4px}
+.task-tree .header-row{background:color-mix(in srgb,var(--accent) 10%,var(--surface));border-bottom:none;border-radius:7px;padding:3px 8px} /* match the timeline header band */
 .header-row input.theader{flex:1;border-color:transparent;background:transparent;font-family:var(--serif);font-size:16px;font-weight:600;color:var(--ink)}
 .header-row input.theader:focus{border-color:var(--accent);background:var(--surface)}
 /* notes: page rail + heading */
@@ -2336,6 +2338,11 @@ function dnum(ds){ return Math.round(new Date(ds+'T00:00').getTime()/86400000); 
 function daysBetween(a,b){ return dnum(b)-dnum(a); }
 function weekStart(ds){ const d=new Date(ds+'T00:00'); d.setDate(d.getDate()-((d.getDay()+6)%7)); return iso(d); }
 function monthStart(ds){ return ds.slice(0,8)+'01'; }
+function workingDays(a,b){ if(!a||!b) return 0; let lo=a<b?a:b, hi=a<b?b:a, n=0; // weekdays (Mon–Fri) in [a,b] inclusive
+  for(let d=lo; d<=hi; d=addDays(d,1)){ const w=new Date(d+'T00:00').getDay(); if(w!==0&&w!==6) n++; } return n; }
+function wdAway(target){ const T=todayStr(); if(target===T) return 'today'; // working days from today to a single date
+  if(target>T) return 'in '+workingDays(addDays(T,1),target)+' working days';
+  return workingDays(target,addDays(T,-1))+' working days ago'; }
 function taskColor(t){ return (stateOf(t.stateId)||{}).color||'var(--ink-3)'; } // colour roadmap pills by task state
 function taskTagDot(t){ const tg=taskTagOf((t.tagIds||[])[0]); return tg?`<span class="rtagdot" style="background:${tg.color}" title="${esc(tg.name)}"></span>`:'<span class="rtagdot none"></span>'; } // small circle = first tag's colour
 function roadTagKey(){ const used=new Set(); walkTasks(t=>{ if(t.type!=='header') (t.tagIds||[]).forEach(id=>used.add(id)); });
@@ -2359,13 +2366,15 @@ function renderRoadmap(hide){
   const {min,max}=roadRange(), px=roadPx(), today=todayStr();
   const totalDays=Math.max(1,daysBetween(min,max)), trackW=Math.ceil(totalDays*px), labelW=240;
   const gridStep=S.ui.roadZoom==='day'?px:S.ui.roadZoom==='week'?px*7:px*30.4;
-  const gridBg=`background-image:repeating-linear-gradient(90deg,var(--line) 0 1px,transparent 1px ${gridStep}px)`;
+  const wkndBg=(S.ui.roadZoom==='day'||S.ui.roadZoom==='week') // min is a Monday → days 5–6 are Sat/Sun; shade them full height
+    ?`,repeating-linear-gradient(90deg,transparent 0 ${(5*px).toFixed(2)}px,var(--weekend) ${(5*px).toFixed(2)}px ${(7*px).toFixed(2)}px)`:'';
+  const gridBg=`background-image:repeating-linear-gradient(90deg,var(--line) 0 1px,transparent 1px ${gridStep}px)${wkndBg}`;
   const pill=t=>{ const done=stateOf(t.stateId).done, col=taskColor(t), who=t.owner?' · '+t.owner:'';
     if(t.start&&t.due&&t.due>=t.start){ const x=daysBetween(min,t.start)*px, w=Math.max(px*0.8,daysBetween(t.start,t.due)*px);
-      return `<div class="road-pill span${done?' done':''}" data-act="roadOpen" data-id="${t.id}" style="left:${x}px;width:${w}px;background:${col}26;border-color:${col}" title="${esc(t.name)} · ${t.start} → ${t.due}${esc(who)}"><span class="rp-grip rp-grip-l" title="Drag to change the start date"></span><span class="rp-dot" style="background:${col}"></span><span class="rp-lab">${esc(t.name||'(untitled)')}${esc(who)}</span><span class="rp-grip rp-grip-r" title="Drag to change the due date"></span></div>`; }
+      return `<div class="road-pill span${done?' done':''}" data-act="roadOpen" data-id="${t.id}" style="left:${x}px;width:${w}px;background:${col}26;border-color:${col}" title="${esc(t.name)} · ${t.start} → ${t.due} · ${workingDays(t.start,t.due)} working days${esc(who)}"><span class="rp-grip rp-grip-l" title="Drag to change the start date"></span><span class="rp-dot" style="background:${col}"></span><span class="rp-lab">${esc(t.name||'(untitled)')}${esc(who)}</span><span class="rp-grip rp-grip-r" title="Drag to change the due date"></span></div>`; }
     const anchor=t.due||t.start||t.completed; if(!anchor) return '';
     const x=daysBetween(min,anchor)*px;
-    return `<div class="road-pill mark${done?' done':''}" data-act="roadOpen" data-id="${t.id}" style="left:${x}px" title="${esc(t.name)} · ${anchor}${esc(who)}"><span class="rp-dot" style="background:${col}"></span><span class="rp-lab out">${esc(t.name||'(untitled)')}${esc(who)}</span></div>`; };
+    return `<div class="road-pill mark${done?' done':''}" data-act="roadOpen" data-id="${t.id}" style="left:${x}px" title="${esc(t.name)} · ${anchor} · ${esc(wdAway(anchor))}${esc(who)}"><span class="rp-dot" style="background:${col}"></span><span class="rp-lab out">${esc(t.name||'(untitled)')}${esc(who)}</span></div>`; };
   const rows=(list,depth)=>list.filter(t=>t.type==='header'||!hide||!stateOf(t.stateId).done||hasOpenDesc(t)).map(t=>{
     const kids=(t.children||[]), pad=depth*14;
     const caret=kids.length?`<span class="caret" data-act="tglTask" data-id="${t.id}">${t.collapsed?'▶':'▼'}</span>`:`<span class="caret chidden"></span>`;
@@ -2436,7 +2445,7 @@ function roadDragMove(e){ if(!roadDrag) return; const dx=e.clientX-roadDrag.star
   else if(roadDrag.mode==='start'){ if(roadDrag.span){ let sh=d*px, mx=roadDrag.origWidth-px*0.5; if(sh>mx)sh=mx; p.style.left=(roadDrag.origLeft+sh)+'px'; p.style.width=(roadDrag.origWidth-sh)+'px'; } else p.style.left=(roadDrag.origLeft+d*px)+'px'; }
   const r=findTask(roadDrag.id); if(r){ const t=r.t; let s=t.start,u=t.due;
     if(roadDrag.mode==='move'){ s=addDays(t.start,d); u=addDays(t.due,d); } else if(roadDrag.mode==='start'){ s=addDays(t.start||t.due,d); if(u&&s>u)s=u; } else { u=addDays(t.due,d); if(roadDrag.span&&u<t.start)u=t.start; }
-    p.title=(s?('start '+s+(u?' · ':'')):'')+(u?('due '+u):''); } }
+    p.title=(s?('start '+s+(u?' · ':'')):'')+(u?('due '+u):'')+((s&&u&&u>=s)?(' · '+workingDays(s,u)+' working days'):''); } }
 function roadDragUp(e){ document.removeEventListener('pointermove',roadDragMove); const dr=roadDrag; roadDrag=null; if(!dr) return;
   const d=Math.round((e.clientX-dr.startX)/dr.px);
   if(!dr.moved||d===0){ if(dr.pill) dr.pill.classList.remove('dragging'); return; } // a plain click → let it open the editor
