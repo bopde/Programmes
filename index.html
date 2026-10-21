@@ -2334,7 +2334,7 @@ function renderWeekView(){ const wb=weekBounds(); const today=todayStr();
 let roadRecenter=true; // center on today on first paint / zoom change / Today button (not on every edit)
 const ROAD_PX={day:34,week:13,month:4.6,quarter:2.3}; // pixels per day at each zoom
 function roadPx(){ return ROAD_PX[S.ui.roadZoom]||ROAD_PX.week; }
-function dnum(ds){ return Math.round(new Date(ds+'T00:00').getTime()/86400000); }
+function dnum(ds){ const p=ds.split('-'); return Math.round(Date.UTC(+p[0],+p[1]-1,+p[2])/86400000); } // UTC/DST-safe day number (local parsing drifts a day across a DST change, shifting weekend bands)
 function daysBetween(a,b){ return dnum(b)-dnum(a); }
 function weekStart(ds){ const d=new Date(ds+'T00:00'); d.setDate(d.getDate()-((d.getDay()+6)%7)); return iso(d); }
 function monthStart(ds){ return ds.slice(0,8)+'01'; }
