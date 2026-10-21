@@ -61,7 +61,7 @@ A single-file, locally hosted budgeting and programme management app — a "Noti
       iv. Views — templated views (Full detail, Financial summary, By supplier, By location, Contract register) plus a custom view builder (choose columns, grouping, filter) with saved views.
       v. Archiving — contracts, POs, PO lines and budget lines all have an archive button (🗄) alongside delete; archived items are hidden from default views and dropdowns but keep their history and can be shown or restored (↩) at any time.
    b. Calendar
-      i. Month view by default; switch to week or day.
+      i. Month view by default; switch to week or day. In the month grid every week row is the same height, so the layout stays steady as you move between months; a day with more items than fit shows the first few plus a "+N more" link that opens that day.
       ii. Tags (Milestone, Meeting, Hui, Activation/Activity, Deadline — customisable in ⚙ Settings) colour and filter events; each event also has an Organiser field (with an Excel-style multi-select Organiser filter in the toolbar), and event notes are the place for hui notes.
       iii. Tasks with due dates appear automatically on the calendar as an empty box (☐, i.e. not yet done), and completed actions show on their completion date as a bare tick (✓). The ☐ Tasks and ✓ Done chips in the toolbar filter task and completed-action pills in or out.
    c. Actions
