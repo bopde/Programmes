@@ -307,6 +307,10 @@ dialog .m-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;bord
 .blk.t-h3 .bc{font-size:16px;font-weight:600;margin-top:6px}
 .blk.t-bullet{display:flex}.blk.t-bullet:before{content:'•';padding:3px 2px 0 10px;color:var(--ink-2)}
 .blk.t-bullet .bc{flex:1}
+.blk.t-number{display:flex}.blk.t-number:before{content:attr(data-ord) '.';padding:3px 4px 0 6px;color:var(--ink-2);min-width:22px;text-align:right;flex:none}
+.blk.t-number .bc{flex:1}
+.blk.selblk{background:color-mix(in srgb,var(--accent) 15%,var(--surface));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 45%,transparent)}
+.blk.selblk .bc:focus{background:transparent;box-shadow:none}
 .blk.t-callout{background:var(--accent-soft);border:1px solid #eadbce;padding:6px 10px}
 .blk.t-divider{border-top:1px solid var(--line);margin:14px 0;height:0}
 .blk .handle{position:absolute;left:-30px;top:3px;opacity:0;color:var(--ink-3);cursor:pointer;padding:2px 6px;border-radius:5px;font-size:13px}
@@ -2610,7 +2614,7 @@ function newBlock(type){ const b={id:uid(),type:type||'p',html:''};
   if(type==='table'){ b.rows=[['Column','Column'],['','']]; }
   return b;
 }
-const BLOCK_PH={p:'Type “/” for headings, bullets, toggles, tables, links… (this is a free notes area)',h1:'Heading 1',h2:'Heading 2',h3:'Heading 3',bullet:'List item',callout:'Callout',toggle:'Toggle heading'};
+const BLOCK_PH={p:'Type “/” for headings, bullets, toggles, tables, links… (this is a free notes area)',h1:'Heading 1',h2:'Heading 2',h3:'Heading 3',bullet:'List item',number:'List item',callout:'Callout',toggle:'Toggle heading'};
 
 /* ---- Behaviour Change Wheel taxonomy (used by cascading grid dropdowns) ---- */
 const LMH=['Low','Medium','High'];
@@ -2746,7 +2750,7 @@ const NOTE_TEMPLATES={
   links:{name:'Links database',icon:'🔗',kind:'links',blocks:()=>[]},
 };
 
-function blockHTML(b){
+function blockHTML(b,ord){
   const handle=`<span class="handle" data-act="blockMenu" data-id="${b.id}" title="Block options">⋮⋮</span>`;
   if(b.type==='divider') return `<div class="blk t-divider" data-blk="${b.id}">${handle}</div>`;
   if(b.type==='grid'){
@@ -2780,12 +2784,63 @@ function blockHTML(b){
     return `<div class="blk t-toggle" data-blk="${b.id}">${handle}
       <div class="tg-head"><span class="tgc" data-act="tglBlock" data-id="${b.id}">${b.open?'▼':'▶'}</span>
       <div class="bc" contenteditable="true" data-bid="${b.id}" data-ph="Toggle heading">${b.html}</div></div>
-      ${b.open?`<div class="tg-kids">${(b.children||[]).map(blockHTML).join('')}
+      ${b.open?`<div class="tg-kids">${blocksHTML(b.children||[])}
         <div class="small muted" style="padding:2px 6px;cursor:pointer" data-act="addChildBlock" data-id="${b.id}">+ add inside</div></div>`:''}</div>`;
   }
-  return `<div class="blk t-${b.type}" data-blk="${b.id}">${handle}<div class="bc" contenteditable="true" data-bid="${b.id}" data-ph="${BLOCK_PH[b.type]||''}">${b.html}</div></div>`;
+  return `<div class="blk t-${b.type}" data-blk="${b.id}"${b.type==='number'?` data-ord="${ord||1}"`:''}>${handle}<div class="bc" contenteditable="true" data-bid="${b.id}" data-ph="${BLOCK_PH[b.type]||''}">${b.html}</div></div>`;
 }
+/* render a list of blocks, numbering consecutive "number" blocks (reset by any other block) */
+function blocksHTML(list){ let n=0; return (list||[]).map(b=>{ if(b.type==='number'){ n++; return blockHTML(b,n); } n=0; return blockHTML(b); }).join(''); }
+/* ===== multi-block selection: Shift-click or drag across blocks, then Ctrl/Cmd-C copy, X cut, Delete, Esc ===== */
+let selBlocks=[], selAnchor=null;
+function topBlockOf(el){ if(!el) return null; let b=el.closest&&el.closest('.blk[data-blk]'); if(!b) return null;
+  while(b.parentElement&&b.parentElement.id!=='doc'){ const up=b.parentElement.closest&&b.parentElement.closest('.blk[data-blk]'); if(!up) break; b=up; }
+  return (b.parentElement&&b.parentElement.id==='doc')?b:null; }
+function topIds(){ return [...document.querySelectorAll('#doc > .blk[data-blk]')].map(e=>e.dataset.blk); }
+function paintSel(){ document.querySelectorAll('.blk.selblk').forEach(e=>e.classList.remove('selblk')); selBlocks.forEach(id=>{ const el=document.querySelector(`#doc > .blk[data-blk="${id}"]`); if(el) el.classList.add('selblk'); }); }
+function clearSel(){ if(selBlocks.length){ selBlocks=[]; paintSel(); } }
+function selectRange(aId,bId){ const ids=topIds(); let i=ids.indexOf(aId), j=ids.indexOf(bId); if(i<0||j<0) return; if(i>j){ const t=i;i=j;j=t; }
+  selBlocks=ids.slice(i,j+1); paintSel();
+  const s=window.getSelection&&window.getSelection(); if(s&&s.removeAllRanges) try{ s.removeAllRanges(); }catch(e){}
+  if(document.activeElement&&document.activeElement.closest&&document.activeElement.closest('.bc')) document.activeElement.blur(); }
+function blockPlain(b){ const t=htmlToText(b.html||''); switch(b.type){ case 'h1':return '# '+t; case 'h2':return '## '+t; case 'h3':return '### '+t; case 'bullet':return '- '+t; case 'number':return '1. '+t; case 'callout':return '> '+t; case 'divider':return '---'; default:return t; } }
+function copySel(cut){ if(!selBlocks.length) return; const ids=topIds().filter(id=>selBlocks.includes(id));
+  const text=ids.map(id=>{ const r=findBlock(id); return r?blockPlain(r.b):''; }).join('\n');
+  try{ navigator.clipboard.writeText(text); }catch(e){ try{ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.left='-9999px'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }catch(_){} }
+  const n=ids.length; if(cut){ deleteSel(); toast(n+' block'+(n>1?'s':'')+' cut'); } else toast(n+' block'+(n>1?'s':'')+' copied'); }
+function deleteSel(){ if(!selBlocks.length) return; const pg=curPage(); const kill=new Set(selBlocks);
+  pg.blocks=(pg.blocks||[]).filter(b=>!kill.has(b.id)); if(!pg.blocks.length) pg.blocks=[newBlock('p')]; selBlocks=[]; save(); render(); }
+document.addEventListener('mousedown',e=>{ const inDoc=e.target.closest&&e.target.closest('#doc'); if(!inDoc){ clearSel(); return; }
+  const tb=topBlockOf(e.target);
+  if((e.shiftKey)&&tb){ e.preventDefault(); e.stopPropagation(); selectRange(selAnchor||tb.dataset.blk,tb.dataset.blk); return; }
+  if((e.metaKey||e.ctrlKey)&&tb){ e.preventDefault(); e.stopPropagation(); const id=tb.dataset.blk;
+    selBlocks = selBlocks.includes(id) ? selBlocks.filter(x=>x!==id) : topIds().filter(x=>selBlocks.includes(x)||x===id);
+    selAnchor=id; paintSel(); return; }
+  if(tb) selAnchor=tb.dataset.blk; clearSel(); },true);
+document.addEventListener('mouseup',()=>{ setTimeout(()=>{ const s=window.getSelection&&window.getSelection(); if(!s||s.isCollapsed) return;
+  const ab=topBlockOf(s.anchorNode&&(s.anchorNode.nodeType===1?s.anchorNode:s.anchorNode.parentElement));
+  const fb=topBlockOf(s.focusNode&&(s.focusNode.nodeType===1?s.focusNode:s.focusNode.parentElement));
+  if(ab&&fb&&ab!==fb) selectRange(ab.dataset.blk,fb.dataset.blk); },0); });
+document.addEventListener('keydown',e=>{ if(!selBlocks.length) return; const k=e.key.toLowerCase(), mod=e.metaKey||e.ctrlKey;
+  if(mod&&k==='c'){ e.preventDefault(); copySel(false); }
+  else if(mod&&k==='x'){ e.preventDefault(); copySel(true); }
+  else if(k==='delete'||k==='backspace'){ e.preventDefault(); deleteSel(); }
+  else if(k==='escape'){ clearSel(); } });
+/* paste multi-line text as separate blocks (so copied blocks paste back as blocks) */
+function lineToBlock(line){ let ty='p', h=line.trim(), m;
+  if(m=h.match(/^#{3}\s+(.*)/)){ ty='h3'; h=m[1]; } else if(m=h.match(/^#{2}\s+(.*)/)){ ty='h2'; h=m[1]; } else if(m=h.match(/^#\s+(.*)/)){ ty='h1'; h=m[1]; }
+  else if(m=h.match(/^\d+[.)]\s+(.*)/)){ ty='number'; h=m[1]; } else if(m=h.match(/^[-*•]\s+(.*)/)){ ty='bullet'; h=m[1]; }
+  return {type:ty, html:esc(h)}; }
+document.addEventListener('paste',e=>{ const bc=e.target.closest&&e.target.closest('.bc[data-bid]'); if(!bc) return;
+  const cd=e.clipboardData||window.clipboardData; if(!cd) return; const text=cd.getData('text/plain')||'';
+  if(text.indexOf('\n')<0) return; // single line → native inline paste
+  e.preventDefault(); const r=findBlock(bc.dataset.bid); if(!r) return; r.b.html=bc.innerHTML;
+  const lines=text.replace(/\r/g,'').split('\n'); while(lines.length&&!lines[0].trim())lines.shift(); while(lines.length&&!lines[lines.length-1].trim())lines.pop();
+  if(!lines.length) return; const made=lines.map(l=>{ const x=lineToBlock(l); return Object.assign(newBlock(x.type),{html:x.html}); });
+  if(htmlToText(r.b.html).trim()===''){ r.list.splice(r.idx,1,...made); } else { r.list.splice(r.idx+1,0,...made); }
+  save(); render(); focusBlock(made[made.length-1].id,true); });
 function renderStatus(v){
+  selBlocks=[]; // a fresh notes render clears any block selection
   const pg=curPage();
   const rail=`<div class="note-rail">
     ${S.notes.map(p=>`<button class="note-tab ${p.id===pg.id?'on':''}" data-act="notePage" data-id="${p.id}"><span>${p.icon||'📄'}</span> ${esc(p.name)}</button>`).join('')}
@@ -2797,8 +2852,8 @@ function renderStatus(v){
       <input class="ptitle" value="${esc(pg.name)}" data-pgname="${pg.id}" placeholder="Untitled">
       <span class="sp" style="flex:1"></span>
       <button class="btn sm ghost danger" data-act="delNotePage" data-id="${pg.id}" title="Delete page">Delete page</button></div>
-    ${(pg.blocks||[]).map(blockHTML).join('')}
-    <div class="blk"><div class="bc muted small" data-act="addBlockEnd" style="cursor:text;padding-top:10px">+ Click to add a block — press “/” for headings, toggles, tables and links</div></div></div>`; }
+    ${blocksHTML(pg.blocks)}
+    <div class="blk"><div class="bc muted small" data-act="addBlockEnd" style="cursor:text;padding-top:10px">+ Click to add a block — press “/” for headings, lists, toggles, tables and links · drag or Shift-click to select blocks, then Ctrl/Cmd-C to copy</div></div></div>`; }
   v.innerHTML=rail+doc;
 }
 ACTIONS.notePage=t=>{ S.ui.notePage=t.dataset.id; save(); render(); };
@@ -2862,7 +2917,7 @@ ACTIONS.tblDelRow=t=>{ const r=findBlock(t.dataset.id); if(r&&r.b.rows.length>1)
 ACTIONS.tblDelCol=t=>{ const r=findBlock(t.dataset.id); if(r&&r.b.rows[0].length>1){ r.b.rows.forEach(row=>row.pop()); save(); render(); } };
 
 ACTIONS.blockMenu=t=>{ const id=t.dataset.id; const r=findBlock(id); if(!r) return;
-  const types=[['p','Text'],['h1','Heading 1'],['h2','Heading 2'],['h3','Heading 3'],['bullet','Bullet'],['callout','Callout'],['toggle','Toggle']];
+  const types=[['p','Text'],['h1','Heading 1'],['h2','Heading 2'],['h3','Heading 3'],['bullet','Bullet'],['number','Numbered'],['callout','Callout'],['toggle','Toggle']];
   modal(`<div class="m-h"><h3>Block</h3></div><div class="m-b">
     <div class="small muted" style="margin-bottom:6px">Turn into</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
@@ -2921,7 +2976,9 @@ document.addEventListener('keydown',e=>{
   const r=findBlock(bc.dataset.bid); if(!r) return;
   if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); hideSlash();
     r.b.html=bc.innerHTML;
-    const nb=newBlock(r.b.type==='bullet'?'bullet':'p');
+    const isList=r.b.type==='bullet'||r.b.type==='number';
+    if(isList&&bc.textContent.trim()===''){ r.b.type='p'; r.b.html=''; save(); render(); focusBlock(r.b.id); return; } // empty list item → leave the list
+    const nb=newBlock(isList?r.b.type:'p');
     r.list.splice(r.idx+1,0,nb); save(); render(); focusBlock(nb.id); }
   else if(e.key==='Backspace'&&bc.textContent.trim()===''&&!bc.querySelector('.chip')){
     if(r.idx>0||r.parent){ e.preventDefault(); hideSlash(); // don't delete the very first top-level block (nothing to fall back to)
@@ -2933,7 +2990,7 @@ document.addEventListener('keydown',e=>{
 /* slash menu */
 const SLASH_ITEMS=[
   ['p','¶','Text'],['h1','H1','Heading 1'],['h2','H2','Heading 2'],['h3','H3','Heading 3'],
-  ['bullet','•','Bulleted list'],['toggle','▸','Toggle (collapsible)'],['callout','▢','Callout'],
+  ['bullet','•','Bulleted list'],['number','1.','Numbered list'],['toggle','▸','Toggle (collapsible)'],['callout','▢','Callout'],
   ['table','⊞','Table'],['divider','—','Divider'],['link','🔗','Link to item…'],
 ];
 let slashFor=null;
@@ -3218,6 +3275,7 @@ ACTIONS.exportMD=()=>{
   const bmd=(b,depth)=>{ const ind='  '.repeat(depth); let out='';
     if(b.type==='h1') out=`# ${htmlToText(b.html)}`; else if(b.type==='h2') out=`## ${htmlToText(b.html)}`;
     else if(b.type==='h3') out=`### ${htmlToText(b.html)}`; else if(b.type==='bullet') out=ind+`- ${htmlToText(b.html)}`;
+    else if(b.type==='number') out=ind+`1. ${htmlToText(b.html)}`;
     else if(b.type==='divider') out='---'; else if(b.type==='callout') out=`> ${htmlToText(b.html)}`;
     else if(b.type==='table') out=mdTable((b.rows[0]||[]).map(htmlToText),(b.rows.slice(1)||[]).map(r=>r.map(htmlToText)));
     else if(b.type==='grid') out=mdTable((b.columns||[]).map(c=>c.label),(b.rows||[]).map(gr=>(b.columns||[]).map(c=>gr[c.key]||'')));
