@@ -26,6 +26,14 @@
   --warn-soft:#fdf1e3;
   --bad:      #b3423a;
   --bad-soft: #f9e9e8;
+  /* due-date "time to go" scale (hot = urgent → cool = far) */
+  --due-over: #c62828;   /* overdue — bright red */
+  --due-today:#d84315;   /* due today — red-orange */
+  --due-soon: #c9741a;   /* next few days — orange */
+  --due-week: #3f8f52;   /* within the week — green */
+  --due-next: #2f8fa6;   /* a week-plus out — teal */
+  --due-blue: #3b6fb0;   /* well out — blue */
+  --weekend:  rgba(91,107,122,.09); /* Sat/Sun column shading on the roadmap */
   --sel:      #eef3f7;
   --shadow: 0 1px 2px rgba(34,48,62,.06), 0 4px 16px rgba(34,48,62,.05);
   --radius: 10px;
@@ -132,6 +140,7 @@ tr.fc-planned>td{background:#f4f1fa}
 .filewrap{position:relative}
 #fileStatus{white-space:nowrap;max-width:230px;overflow:hidden;text-overflow:ellipsis;border:1px solid var(--line);font-weight:600}
 #fileStatus.fs-ok{background:var(--good-soft);color:var(--good);border-color:transparent}
+#fileStatus .fs-auto{font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;opacity:.8;border:1px solid currentColor;border-radius:4px;padding:0 3px;margin-left:5px;vertical-align:1px}
 #fileStatus.fs-warn,#fileStatus.fs-dirty{background:var(--warn-soft);color:var(--warn);border-color:var(--warn)}
 .filemenu{position:absolute;top:calc(100% + 5px);right:0;z-index:70;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:6px;min-width:250px}
 .filemenu .fm-head{font-size:12px;color:var(--ink-2);padding:5px 8px 7px}
@@ -195,7 +204,10 @@ dialog .m-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;bord
 /* ---------- calendar ---------- */
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--line-2);gap:1px;box-shadow:var(--shadow)}
 .cal-grid .dow{background:var(--surface-2);padding:6px 8px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-2);font-weight:600;text-align:center}
-.cal-cell{background:var(--surface);min-height:112px;padding:5px 6px;position:relative}
+.cal-cell{background:var(--surface);min-height:112px;padding:5px 6px;position:relative;overflow-y:auto}
+.cal-month{grid-template-rows:auto repeat(6,118px)} /* every week row the same height; busy days scroll inside their cell instead of stretching the row */
+.cal-cell::-webkit-scrollbar{width:6px}
+.cal-cell::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
 .cal-cell.dim{background:var(--surface-2)}
 .cal-cell.today .dnum{background:var(--accent);color:#fff}
 .cal-cell .dnum{font-size:12px;font-weight:600;width:22px;height:22px;display:inline-grid;place-items:center;border-radius:50%;color:var(--ink-2)}
@@ -205,6 +217,8 @@ dialog .m-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;bord
 .ev:hover{background:var(--sel)}
 .ev .t{overflow:hidden;text-overflow:ellipsis}
 .ev.task{color:var(--ink-2)}
+.ev.more{font-size:11px;font-weight:600;color:var(--accent)}
+.ev.more.muted{color:var(--ink-3);font-weight:500}
 .cal-list .day-h{font-family:var(--serif);font-size:15px;margin:16px 0 6px;font-weight:600}
 
 /* ---------- tasks ---------- */
@@ -214,7 +228,8 @@ dialog .m-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;bord
 .task-row .caret{flex:0 0 16px;width:16px;min-width:16px;height:18px;display:inline-flex;align-items:center;justify-content:center;color:var(--ink-3);cursor:pointer;border-radius:5px;font-size:10px}
 .task-row .caret:hover{background:var(--sel);color:var(--ink)}
 .task-row .caret.chidden{visibility:hidden}
-.task-row input.tname{flex:1;border-color:transparent;background:transparent;min-width:140px}
+.task-row input.tname{field-sizing:content;flex:0 1 auto;border-color:transparent;background:transparent;min-width:140px;max-width:46ch}
+.task-row .trowfill{flex:1;min-width:8px}
 .task-row input.tname:focus{border-color:var(--accent);background:var(--surface)}
 .task-row.done input.tname{color:var(--ink-3);text-decoration:line-through}
 .task-row .meta{display:flex;align-items:center;gap:6px;flex:none}
@@ -235,12 +250,28 @@ dialog .m-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;bord
 .header-row:hover .rowtools{opacity:1}
 /* due-date cue: subtle tint + coloured left edge, echoing the priority tags */
 .task-row .duewrap{display:inline-flex;align-items:center;gap:4px;border-radius:6px;padding:0 2px}
-.task-row input[type=date].due-over{background:var(--bad-soft);box-shadow:inset 3px 0 0 var(--bad);color:var(--bad);font-weight:600}
-.task-row input[type=date].due-soon{background:var(--warn-soft);box-shadow:inset 3px 0 0 var(--warn);color:var(--warn);font-weight:600}
-.task-row input[type=date].due-near{background:var(--good-soft);box-shadow:inset 3px 0 0 var(--good)}
-.task-row input[type=date].due-far{box-shadow:inset 3px 0 0 var(--line)}
-.task-row .tlast{border-color:transparent;background:transparent;color:var(--ink-3);font-size:12px;width:116px}
-.task-row .tlast:hover{border-color:var(--line)}
+/* due-date, graded hot→cool AND a progressive fill that grows as the date nears (via --fill) */
+.task-row input[type=date].dd{color:var(--ddc);box-shadow:inset 3px 0 0 var(--ddc);background:linear-gradient(90deg,color-mix(in srgb,var(--ddc) 26%,var(--surface)) var(--fill,0%),transparent var(--fill,0%))}
+.task-row input[type=date].dd-over {--ddc:var(--due-over); font-weight:600}
+.task-row input[type=date].dd-today{--ddc:var(--due-today);font-weight:600}
+.task-row input[type=date].dd-soon {--ddc:var(--due-soon); font-weight:600}
+.task-row input[type=date].dd-week {--ddc:var(--due-week)}
+.task-row input[type=date].dd-next {--ddc:var(--due-next)}
+.task-row input[type=date].dd-far  {--ddc:var(--due-blue)}
+.task-row input[type=date].dd-none {box-shadow:inset 3px 0 0 var(--line)}
+/* start-date — a cooler "when work begins" cue, kept quieter than due */
+.task-row .tstart.st-active{color:var(--due-week);box-shadow:inset 3px 0 0 var(--due-week);background:color-mix(in srgb,var(--due-week) 10%,var(--surface))}
+.task-row .tstart.st-soon  {color:var(--due-blue);box-shadow:inset 3px 0 0 var(--due-blue);background:color-mix(in srgb,var(--due-blue) 10%,var(--surface))}
+.task-row .tstart.st-later {color:var(--ink-2);box-shadow:inset 3px 0 0 color-mix(in srgb,var(--due-blue) 45%,var(--line))}
+.duekey{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.duekey i{width:9px;height:9px;border-radius:2px;display:inline-block}
+.task-row .tedited{font-size:11px;color:var(--ink-3);white-space:nowrap;flex:none;margin-right:2px}
+.task-row .tstart{border-color:transparent;background:transparent;color:var(--ink-2);font-size:12px;width:116px}
+.task-row .tstart:hover{border-color:var(--line)}
+.task-row .tstartwrap{color:var(--ink-3);font-size:12px;white-space:nowrap}
+.task-row .startcol{width:130px;flex:none;display:inline-flex;align-items:center}
+.task-row .startbtn{font-size:11px;color:var(--ink-3);cursor:pointer;opacity:.65;border:1px solid transparent;border-radius:6px;padding:0 4px;white-space:nowrap}
+.task-row .startbtn:hover{border-color:var(--accent);color:var(--accent);opacity:1}
 .tlinks{display:inline-flex;gap:4px;flex-wrap:wrap;max-width:340px}
 .due-over{color:var(--bad)!important;font-weight:600}
 .due-soon{color:var(--warn)!important;font-weight:600}
@@ -251,6 +282,7 @@ dialog .m-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;bord
 .task-row .towner:hover{border-color:var(--line)}
 .task-row .towner:focus{border-color:var(--accent);background:var(--surface)}
 .header-row{margin-top:10px;border-bottom:1px solid var(--line);border-radius:0;padding-bottom:4px}
+.task-tree .header-row{background:color-mix(in srgb,var(--accent) 10%,var(--surface));border-bottom:none;border-radius:7px;padding:3px 8px} /* match the timeline header band */
 .header-row input.theader{flex:1;border-color:transparent;background:transparent;font-family:var(--serif);font-size:16px;font-weight:600;color:var(--ink)}
 .header-row input.theader:focus{border-color:var(--accent);background:var(--surface)}
 /* notes: page rail + heading */
@@ -275,6 +307,10 @@ dialog .m-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;bord
 .blk.t-h3 .bc{font-size:16px;font-weight:600;margin-top:6px}
 .blk.t-bullet{display:flex}.blk.t-bullet:before{content:'•';padding:3px 2px 0 10px;color:var(--ink-2)}
 .blk.t-bullet .bc{flex:1}
+.blk.t-number{display:flex}.blk.t-number:before{content:attr(data-ord) '.';padding:3px 4px 0 6px;color:var(--ink-2);min-width:22px;text-align:right;flex:none}
+.blk.t-number .bc{flex:1}
+.blk.selblk{background:color-mix(in srgb,var(--accent) 15%,var(--surface));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 45%,transparent)}
+.blk.selblk .bc:focus{background:transparent;box-shadow:none}
 .blk.t-callout{background:var(--accent-soft);border:1px solid #eadbce;padding:6px 10px}
 .blk.t-divider{border-top:1px solid var(--line);margin:14px 0;height:0}
 .blk .handle{position:absolute;left:-30px;top:3px;opacity:0;color:var(--ink-3);cursor:pointer;padding:2px 6px;border-radius:5px;font-size:13px}
@@ -315,6 +351,58 @@ dialog .m-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;bord
 .empty{padding:36px;text-align:center;color:var(--ink-3)}
 .settings-row{display:flex;gap:8px;align-items:center;margin-bottom:6px}
 input[type=color]{padding:0;width:34px;height:28px;border-radius:6px;cursor:pointer}
+/* segmented button group */
+.seg{display:inline-flex;gap:2px;border:1px solid var(--line);border-radius:8px;padding:2px;background:var(--surface-2)}
+.seg .btn.sm:not(.accent){border-color:transparent;background:transparent}
+/* Actions · roadmap (timeline) */
+.road-scroll{overflow:auto;max-height:72vh;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.road-grid{position:relative;min-width:100%}
+.road-axis{display:flex;position:sticky;top:0;z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+.road-corner{position:sticky;left:0;z-index:6;width:240px;min-width:240px;box-sizing:border-box;padding:7px 10px;font-size:11px;font-weight:600;color:var(--ink-2);background:var(--surface);border-right:1px solid var(--line)}
+.road-axis-track{position:relative;height:30px}
+.road-tick{position:absolute;top:0;bottom:0;border-left:1px solid var(--line)}
+.road-tick>span{position:absolute;left:3px;top:8px;font-size:10px;color:var(--ink-3);white-space:nowrap}
+.road-tick.mo>span,.road-tick.q>span,.road-tick.wk>span{color:var(--ink-2);font-weight:600}
+.road-tick.q{border-left-color:var(--ink-3)}
+.road-tick.we{background:color-mix(in srgb,var(--ink-3) 6%,transparent)}
+.road-row{display:flex;align-items:stretch;min-height:30px;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
+.road-row.rtask{cursor:pointer}
+.road-row.rtask:hover .road-label{background:var(--sel)}
+.road-row.ropen .road-label{background:var(--accent-soft)}
+.road-row.ropen .road-track{background:color-mix(in srgb,var(--accent) 5%,transparent)}
+.road-label{position:sticky;left:0;z-index:3;width:240px;min-width:240px;box-sizing:border-box;display:flex;align-items:center;gap:4px;padding:4px 8px;background:var(--surface);border-right:1px solid var(--line);font-size:13px}
+.road-row.rhead .road-label{background:color-mix(in srgb,var(--accent) 10%,var(--surface))}
+.road-row.rhead .road-track{background:color-mix(in srgb,var(--accent) 6%,transparent)}
+.road-label .caret{flex:0 0 14px;width:14px;cursor:pointer;color:var(--ink-3);font-size:10px;text-align:center}
+.road-label .caret.chidden{visibility:hidden}
+.road-label .rname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.road-label .rtagdot{flex:none;width:9px;height:9px;border-radius:50%;margin-right:6px}
+.road-label .rtagdot.none{background:transparent;box-shadow:inset 0 0 0 1px var(--line)}
+.road-row.rdone .rname{text-decoration:line-through;color:var(--ink-3)}
+.road-track{position:relative;flex:none}
+.road-pill{position:absolute;top:5px;height:20px;display:inline-flex;align-items:center;gap:5px;cursor:grab;z-index:1}
+.road-pill:active{cursor:grabbing}
+.road-pill.mark{max-width:60vw} /* cap the marker's text label; span bars must keep their true width */
+.road-pill.span{border:1px solid;border-radius:7px;padding:0 7px;box-sizing:border-box;min-width:16px;overflow:hidden}
+.road-pill .rp-grip{position:absolute;top:0;bottom:0;width:7px;cursor:ew-resize;z-index:3}
+.road-pill .rp-grip-l{left:0}
+.road-pill .rp-grip-r{right:0}
+.road-pill.dragging{opacity:.9;box-shadow:0 3px 10px rgba(20,30,40,.25);z-index:6}
+.road-pill .rp-dot{flex:none;width:9px;height:9px;border-radius:50%}
+.road-pill .rp-lab{font-size:11px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.road-pill .rp-lab.out{padding-left:4px;color:var(--ink-2)}
+.road-pill.done{opacity:.5;filter:grayscale(.6)}
+.road-pill.done .rp-lab{text-decoration:line-through}
+.road-pill:hover{filter:brightness(1.05)}
+.road-pill.span:hover{box-shadow:0 0 0 2px var(--accent-soft)}
+.road-today{position:absolute;top:0;bottom:0;width:0;border-left:2px solid var(--bad);z-index:2;pointer-events:none}
+.road-today::after{content:'today';position:absolute;top:1px;left:3px;font-size:9px;color:var(--bad);font-weight:700}
+.road-detail{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:60;max-width:calc(100vw - 32px)}
+.rd-card{width:min(720px,calc(100vw - 32px));box-sizing:border-box;padding:12px 14px;display:flex;flex-direction:column;gap:9px;border:1px solid var(--line);border-top:3px solid var(--accent);border-radius:12px;background:var(--surface);box-shadow:0 12px 40px rgba(20,30,40,.28)}
+.rd-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.rd-f{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-2)}
+.rd-row textarea{width:100%;min-height:52px;resize:vertical}
+.rd-owner{width:120px}
 @media print{header,.toolbar{display:none}}
 </style>
 </head>
@@ -370,7 +458,7 @@ const dstr=d=>d?new Date(d+'T00:00').toLocaleDateString('en-NZ',{day:'numeric',m
 let S=null, lsKey=null, TAB='budget';
 
 function defaultState(name){return {
-  v:9,
+  v:10,
   programme:{name:name||'New Programme',currency:'$',created:todayStr(),modified:'',autosaveFile:false},
   settings:{
     taskStates:[
@@ -412,7 +500,7 @@ function defaultState(name){return {
   forecast:{},   // '<type>:<id>|<period>' -> {mode:'val'|'pct', v:number}
   fcCfg:{gran:'quarter',start:fyStartKey(),count:4},
   events:[],     // {id,title,date,endDate,time,tagIds:[],organiser,notes,links:[]}
-  tasks:[],      // nested: {id,name,type('task'|'header'),due,lastActioned,completed,stateId,priorityId,owner,tagIds:[],notes,links:[],collapsed,children:[]}
+  tasks:[],      // nested: {id,name,type('task'|'header'),start,due,lastActioned,completed,stateId,priorityId,owner,tagIds:[],notes,links:[],collapsed,children:[]}
   notes:[guidePageObj(),{id:uid(),name:'Notes',icon:'📝',kind:'doc',blocks:[{id:uid(),type:'h1',html:'Notes'},{id:uid(),type:'p',html:''}]}],  // pages (was S.status)
   links:[],      // links database [{id,title,url,category,notes}]
   trash:[],      // recently deleted: {id,kind,label,when,bundle}
@@ -423,7 +511,8 @@ function defaultState(name){return {
       budgetArch:'hide',structView:'active',structFilter:'',structF:{supplier:[],wbs:[],contract:[]},
       fcFilter:'',fcF:{supplier:[],wbs:[],contract:[]},fcView:'',fcOpen:{},
       ovF:{supplier:[],wbs:[],contract:[]},ovWindow:false,calShowTasks:true,calShowDone:true,calF:{organiser:[]},
-      structCollapsed:{},poCollapsed:{},notePage:'',taskGroup:'',taskWeekOnly:false,fcArch:'active'},
+      structCollapsed:{},poCollapsed:{},notePage:'',taskGroup:'',taskWeekOnly:false,fcArch:'active',
+      actionsView:'list',roadZoom:'week',roadOpen:''},
 };}
 function fyStartKey(){ const d=new Date(); const y=d.getMonth()+1>=7?d.getFullYear():d.getFullYear()-1; return y+'-07'; }
 function currentMonthKey(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
@@ -450,6 +539,8 @@ function dataFp(){ const u=S.ui, m=S.programme&&S.programme.modified; // fingerp
   S.ui=undefined; if(S.programme) S.programme.modified='';
   let s; try{ s=JSON.stringify(S); }catch(e){ s=Math.random()+''; }
   S.ui=u; if(S.programme) S.programme.modified=m; return s; }
+function fpOf(obj){ // same fingerprint as dataFp() but for ANY programme object (used to tell if a file and the browser copy really differ)
+  try{ const c=JSON.parse(JSON.stringify(obj)); if(c){ c.ui=undefined; if(c.programme) c.programme.modified=''; } return JSON.stringify(c); }catch(e){ return Math.random()+''; } }
 function resetUndo(){ try{ undoStack=[JSON.stringify(S)]; }catch(e){ undoStack=[]; } redoStack=[]; lastDataFp=dataFp(); }
 function noteChange(){ if(undoLock||OVERVIEW) return; clearTimeout(undoT);
   undoT=setTimeout(()=>{ const fp=dataFp(); if(fp===lastDataFp) return; // ignore pure view-state changes (filters, tab, calendar nav)
@@ -493,7 +584,6 @@ async function updateProgSwitch(){ const sel=$('#progSwitch'); if(!sel) return; 
   sel.innerHTML=`<option value="__ov" ${OVERVIEW?'selected':''}>★ All programmes (overview)</option>`
     +list.map(p=>{ const f=files[p.key]; const where=window.showSaveFilePicker?(f?' — '+f:' — browser only'):'';
         return `<option value="${esc(p.key)}" ${!OVERVIEW&&p.key===lsKey?'selected':''}>${esc(p.name)}${esc(where)}</option>`; }).join('')
-    +`<option value="__manage">🗂 Manage programmes &amp; files…</option>`
     +`<option value="__new">＋ New programme…</option>`; }
 function newProgrammePrompt(){
   modal(`<div class="m-h"><h3>New programme</h3></div><div class="m-b">
@@ -610,10 +700,14 @@ function migrate(d){ const def=defaultState('x');
     if(!d.ui.calF||!Array.isArray(d.ui.calF.organiser)) d.ui.calF={organiser:[]};
     d.v=9;
   }
+  if(d.v<10){ // v9 → v10: tasks gain a start date (pairs with due → a span on the roadmap)
+    (d.tasks||[]).forEach(function fix(t){ if(t.start===undefined) t.start=''; (t.children||[]).forEach(fix); });
+    d.v=10;
+  }
   (d.fcLines||[]).forEach(f=>{ if(f.archived===undefined) f.archived=false; if(f.supplier===undefined) f.supplier=''; });
   if(!d.notes||!d.notes.length) d.notes=[{id:uid(),name:'Notes',icon:'📝',blocks:[{id:uid(),type:'h1',html:'Notes'},{id:uid(),type:'p',html:''}]}];
   (d.contracts||[]).forEach(c=>{ if(!c.variations) c.variations=[]; });
-  (d.tasks||[]).forEach(function fix(t){ if(!t.type) t.type='task'; if(!t.tagIds) t.tagIds=[]; (t.children||[]).forEach(fix); });
+  (d.tasks||[]).forEach(function fix(t){ if(!t.type) t.type='task'; if(!t.tagIds) t.tagIds=[]; if(t.start===undefined) t.start=''; (t.children||[]).forEach(fix); });
   if(!d.ui.fcOpen) d.ui.fcOpen={};
   if(!d.ui.structCollapsed) d.ui.structCollapsed={};
   if(!d.ui.poCollapsed) d.ui.poCollapsed={};
@@ -624,20 +718,68 @@ function migrate(d){ const def=defaultState('x');
   if(d.fcCfg) d.fcCfg.gran='quarter';
   if(!d.links) d.links=[];
   if(!d.trash) d.trash=[];
+  if(!d.ui.actionsView) d.ui.actionsView='list';   // Actions tab: 'list' | 'roadmap'
+  if(!d.ui.roadZoom) d.ui.roadZoom='week';          // roadmap axis granularity: day | week | month | quarter
+  if(d.ui.roadOpen===undefined) d.ui.roadOpen='';   // id of the task whose inline detail is open on the roadmap
   return d;
 }
 function replaceStateInPlace(obj){ // update ALL data of the CURRENT programme (keeps its storage key + file link)
   if(!obj||!obj.programme){ toast('Not a valid programme file'); return false; }
   S=migrate(obj); localStorage.setItem('progapp:last',lsKey); save(); initUI(); return true; }
-function importState(obj){
-  if(!obj||!obj.programme){ toast('Not a valid programme file'); return; }
-  const nm=obj.programme.name; const dup=listLocal().find(p=>p.name===nm);
-  let overwrite=false;
-  if(dup) overwrite=confirm('A programme named “'+nm+'” already exists in this browser.\n\nOK = replace that programme with this file.\nCancel = keep both (open this file as a separate copy).');
+function importState(obj){ return loadFileIntoProgramme(obj,null); } // legacy entry (plain file input, no handle)
+/* Load a programme file into the RIGHT existing programme (never a silent duplicate).
+   Matches the file to a programme by its file identity, else by name; only prompts when the
+   browser copy genuinely differs from the file (so an in-sync relink is silent), and offers to
+   keep the browser version instead of losing unsaved changes. */
+async function loadFileIntoProgramme(obj, handle){
+  if(!obj||!obj.programme){ toast('That file isn’t a programme file'); return; }
+  const list=listLocal(); let target=null;
+  if(handle){ for(const p of list){ try{ const hp=await idbGet(p.key); if(hp&&hp.isSameEntry&&await hp.isSameEntry(handle)){ target=p; break; } }catch(e){} } }
+  if(!target) target=list.find(p=>p.name===obj.programme.name)||null;
+
+  if(target){
+    let stored=null; try{ stored=JSON.parse(localStorage.getItem(target.key)); }catch(e){}
+    const differs = stored && fpOf(stored)!==fpOf(obj); // in sync? then no prompt at all — just relink/load
+    if(differs){
+      const bT=stored.programme&&stored.programme.modified?new Date(stored.programme.modified):null;
+      const fT=obj.programme&&obj.programme.modified?new Date(obj.programme.modified):null;
+      const fileNewer = bT&&fT ? fT>bT : null;
+      const isCurrent = target.key===lsKey && !OVERVIEW; // can we save the live browser copy to its file first?
+      const lead = fileNewer===false
+        ? `Your browser copy of <b>${esc(target.name)}</b> has changes that aren’t in this file yet — loading the file would discard them.`
+        : fileNewer===true
+        ? `This file is <b>newer</b> than your browser copy of <b>${esc(target.name)}</b>.`
+        : `This file differs from your browser copy of <b>${esc(target.name)}</b>.`;
+      const stamps=`<p class="small muted" style="margin:6px 0 0">${bT?('Browser copy: '+bT.toLocaleString('en-NZ')):''}${fT?(' · File: '+fT.toLocaleString('en-NZ')):''}</p>`;
+      const buttons=[];
+      if(isCurrent) buttons.push({label:'Keep browser version (save it to a file)',value:'keep'});
+      buttons.push({label:'Load the file (replace browser copy)',value:'file',cls:'primary'});
+      buttons.push({label:'Cancel',value:'cancel'});
+      const choice=await choiceModal(
+        `<h3 style="margin:0 0 8px">Open “${esc(obj.programme.name)}”?</h3>
+         <p class="small">${lead} Loading replaces the browser copy — it does <b>not</b> create a second programme.</p>${stamps}`, buttons);
+      if(choice==='cancel') return;                       // truly abort: nothing changes, no duplicate
+      if(choice==='keep'){ await ACTIONS.saveJSON(); return; } // write the current browser version out; don't overwrite it with the file
+    }
+    // load into the SAME programme key — one programme, no duplicate
+    flushFileAutosave();
+    S=migrate(obj); OVERVIEW=false; ovCache=null; $('#progName').setAttribute('contenteditable','true');
+    lsKey=target.key; localStorage.setItem('progapp:last',lsKey); save();
+    if(handle){ await idbSet(lsKey,handle); S.programme.autosaveFile=true; save(); }
+    $('#start').classList.remove('show'); initUI();
+    if(handle) markFileSaved(handle.name); else refreshFileLabel();
+    toast('Loaded “'+obj.programme.name+'”'); return;
+  }
+
+  // no existing match → a genuinely new programme (no confusing prompt)
+  flushFileAutosave();
   S=migrate(obj); OVERVIEW=false; ovCache=null; $('#progName').setAttribute('contenteditable','true');
-  lsKey=(dup&&overwrite)?dup.key:('progapp:data:'+slug(S.programme.name)+'-'+uid().slice(-4));
+  lsKey='progapp:data:'+slug(S.programme.name)+'-'+uid().slice(-4);
   localStorage.setItem('progapp:last',lsKey); save();
-  $('#start').classList.remove('show'); initUI(); toast(dup&&!overwrite?'Opened as a separate copy':'Programme loaded');
+  if(handle){ await idbSet(lsKey,handle); S.programme.autosaveFile=true; save(); }
+  $('#start').classList.remove('show'); initUI();
+  if(handle) markFileSaved(handle.name); else refreshFileLabel();
+  toast('Opened “'+obj.programme.name+'” as a new programme');
 }
 function initUI(){
   $('#progName').textContent=S.programme.name;
@@ -711,12 +853,13 @@ function renderOvCalendar(v){
   const first=new Date(d.getFullYear(),d.getMonth(),1); const start=new Date(first); start.setDate(1-((first.getDay()+6)%7));
   let cells=''; const today=todayStr();
   for(let i=0;i<42;i++){ const day=new Date(start); day.setDate(start.getDate()+i); const ds=iso(day); const dim=day.getMonth()!==d.getMonth();
-    const evs=items.events.filter(e=>e.endDate?ds>=e.date&&ds<=e.endDate:e.date===ds).map(e=>`<div class="ev" title="${esc(e.title)} · ${esc(e.prog)}"><span class="dot" style="background:${e.col}"></span><span class="t">${esc(e.title)} <span class="muted">· ${esc(e.prog)}</span></span></div>`).join('');
-    const tks=S.ui.calShowTasks?items.due.filter(t=>t.date===ds).map(t=>`<div class="ev task"><span>☐</span><span class="t">${esc(t.name)} <span class="muted">· ${esc(t.prog)}</span></span></div>`).join(''):'';
-    const dn=S.ui.calShowDone?items.done.filter(t=>t.date===ds).map(t=>`<div class="ev task done"><span>✓</span><span class="t">${esc(t.name)} <span class="muted">· ${esc(t.prog)}</span></span></div>`).join(''):'';
-    cells+=`<div class="cal-cell ${dim?'dim':''} ${ds===today?'today':''}"><span class="dnum">${day.getDate()}</span>${evs}${tks}${dn}</div>`;
+    const evs=items.events.filter(e=>e.endDate?ds>=e.date&&ds<=e.endDate:e.date===ds).map(e=>`<div class="ev" title="${esc(e.title)} · ${esc(e.prog)}"><span class="dot" style="background:${e.col}"></span><span class="t">${esc(e.title)} <span class="muted">· ${esc(e.prog)}</span></span></div>`);
+    const tks=S.ui.calShowTasks?items.due.filter(t=>t.date===ds).map(t=>`<div class="ev task"><span>☐</span><span class="t">${esc(t.name)} <span class="muted">· ${esc(t.prog)}</span></span></div>`):[];
+    const dn=S.ui.calShowDone?items.done.filter(t=>t.date===ds).map(t=>`<div class="ev task done"><span>✓</span><span class="t">${esc(t.name)} <span class="muted">· ${esc(t.prog)}</span></span></div>`):[];
+    const all=[...evs,...tks,...dn]; const CAP=4; let shown=all, more=0; if(all.length>CAP){ shown=all.slice(0,CAP-1); more=all.length-(CAP-1); }
+    cells+=`<div class="cal-cell ${dim?'dim':''} ${ds===today?'today':''}"><span class="dnum">${day.getDate()}</span>${shown.join('')}${more?`<div class="ev more muted">+${more} more</div>`:''}</div>`;
   }
-  $('#cal-body').innerHTML=`<div class="cal-grid">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(x=>`<div class="dow">${x}</div>`).join('')}${cells}</div>`;
+  $('#cal-body').innerHTML=`<div class="cal-grid cal-month">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(x=>`<div class="dow">${x}</div>`).join('')}${cells}</div>`;
 }
 function ovTaskList(list){ return list.map(t=>{
   if(t.type==='header') return `<div class="task-row header-row" style="opacity:.85"><b>${esc(t.name||'')}</b></div>`+((t.children&&t.children.length)?`<div class="task-kids">${ovTaskList(t.children)}</div>`:'');
@@ -897,6 +1040,16 @@ function fcSupplier(ref){ const [t,id]=ref.split(':');
 /* ================= modal / toast / delegation ================= */
 function modal(html){ const d=$('#modal'); d.innerHTML=html; if(!d.open) d.showModal(); }
 function closeModal(){ const d=$('#modal'); if(d.open) d.close(); d.innerHTML=''; }
+/* a promise-returning confirm with custom buttons; resolves the chosen value, or 'cancel' on Escape.
+   NB: listen for 'cancel' (Escape, fired synchronously) — never 'close', whose async event from a
+   previous modal would otherwise leak into and dismiss the next one. */
+function choiceModal(bodyHtml, buttons){ return new Promise(resolve=>{ const d=$('#modal'); let done=false;
+  const onCancel=e=>{ if(e) e.preventDefault(); finish('cancel'); };
+  const finish=v=>{ if(done) return; done=true; d.removeEventListener('cancel',onCancel); closeModal(); resolve(v); };
+  const foot=buttons.map((b,i)=>`<button class="btn ${b.cls||''}" data-ci="${i}">${esc(b.label)}</button>`).join('');
+  d.innerHTML=`<div class="m-b">${bodyHtml}</div><div class="m-f">${foot}</div>`;
+  d.querySelectorAll('[data-ci]').forEach(btn=>btn.addEventListener('click',()=>finish(buttons[+btn.dataset.ci].value)));
+  d.addEventListener('cancel',onCancel); if(!d.open) d.showModal(); }); }
 let toastTimer=null;
 function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),2200); }
 
@@ -923,7 +1076,6 @@ $('#progName').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefa
 $('#progSwitch').addEventListener('change',e=>{ const v=e.target.value;
   if(v==='__ov') enterOverview();
   else if(v==='__new'){ updateProgSwitch(); newProgrammePrompt(); }
-  else if(v==='__manage'){ updateProgSwitch(); ACTIONS.manageProgrammes(); }
   else if(v) openKey(v); });
 
 /* data-bind="collection.id.field" (collections) or "path.field" for S.programme etc */
@@ -2016,12 +2168,14 @@ function renderMonth(){
   let cells=''; const today=todayStr();
   for(let i=0;i<42;i++){ const day=new Date(start); day.setDate(start.getDate()+i); const ds=iso(day);
     const dim=day.getMonth()!==d.getMonth();
-    const evs=eventsOn(ds).map(evPill).join(''), tks=S.ui.calShowTasks?tasksDue(ds).map(taskPill).join(''):'', done=S.ui.calShowDone?tasksCompleted(ds).map(taskDonePill).join(''):'';
+    const items=[...eventsOn(ds).map(evPill), ...(S.ui.calShowTasks?tasksDue(ds).map(taskPill):[]), ...(S.ui.calShowDone?tasksCompleted(ds).map(taskDonePill):[])];
+    const CAP=4; let shown=items, more=0; if(items.length>CAP){ shown=items.slice(0,CAP-1); more=items.length-(CAP-1); } // keep every week row the same height; overflow becomes "+N more"
+    const moreEl=more?`<div class="ev more" data-act="calGotoDay" data-date="${ds}" title="Open day view to see all">+${more} more</div>`:'';
     cells+=`<div class="cal-cell ${dim?'dim':''} ${ds===today?'today':''}">
       <span class="dnum" data-act="calGotoDay" data-date="${ds}" style="cursor:pointer" title="Open day view">${day.getDate()}</span>
-      <button class="addbtn" data-act="eventModal" data-date="${ds}" title="Add event">+</button>${evs}${tks}${done}</div>`;
+      <button class="addbtn" data-act="eventModal" data-date="${ds}" title="Add event">+</button>${shown.join('')}${moreEl}</div>`;
   }
-  $('#cal-body').innerHTML=`<div class="cal-grid">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(x=>`<div class="dow">${x}</div>`).join('')}${cells}</div>`;
+  $('#cal-body').innerHTML=`<div class="cal-grid cal-month">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(x=>`<div class="dow">${x}</div>`).join('')}${cells}</div>`;
 }
 function renderWeek(weekStart){
   let cells=''; const today=todayStr();
@@ -2126,7 +2280,7 @@ function findTask(id,list,parent){ list=list||S.tasks;
     if(t.children){ const r=findTask(id,t.children,t); if(r) return r; } }
   return null;
 }
-function newTask(){ return {id:uid(),name:'',type:'task',due:'',lastActioned:todayStr(),completed:'',stateId:S.settings.taskStates[0].id,priorityId:'',owner:'',tagIds:[],notes:'',links:[],collapsed:false,children:[],showNotes:false}; }
+function newTask(){ return {id:uid(),name:'',type:'task',start:'',due:'',lastActioned:todayStr(),completed:'',stateId:S.settings.taskStates[0].id,priorityId:'',owner:'',tagIds:[],notes:'',links:[],collapsed:false,children:[],showNotes:false,showStart:false}; }
 function newHeader(){ return {id:uid(),name:'',type:'header',children:[],collapsed:false}; }
 function touch(t){ t.lastActioned=todayStr(); }
 function weekBounds(){ const d=new Date(todayStr()+'T00:00'); const mon=new Date(d); mon.setDate(d.getDate()-((d.getDay()+6)%7));
@@ -2134,19 +2288,37 @@ function weekBounds(){ const d=new Date(todayStr()+'T00:00'); const mon=new Date
 const prioRank=id=>{ const i=(S.settings.taskPriorities||[]).findIndex(p=>p.id===id); return i<0?99:i; };
 
 function renderTasks(v){
-  const hide=S.ui.hideDone, week=S.ui.taskWeekOnly;
+  const hide=S.ui.hideDone, week=S.ui.taskWeekOnly, road=S.ui.actionsView==='roadmap';
+  const dueLegend=`<div class="small muted" style="margin-top:6px;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+    <span>Due date</span>
+    <span class="duekey"><i style="background:var(--due-over)"></i>overdue</span>
+    <span class="duekey"><i style="background:var(--due-today)"></i>today</span>
+    <span class="duekey"><i style="background:var(--due-soon)"></i>few days</span>
+    <span class="duekey"><i style="background:var(--due-week)"></i>this week</span>
+    <span class="duekey"><i style="background:var(--due-next)"></i>1–2 weeks</span>
+    <span class="duekey"><i style="background:var(--due-blue)"></i>later</span></div>`;
+  const _rsc=$('#roadScroll'), prevScroll=(_rsc&&_rsc.scrollLeft)||0, prevScrollTop=(_rsc&&_rsc.scrollTop)||0;
   const owners=[...new Set([]. concat(...collectTasks().map(t=>t.owner).filter(Boolean)))];
   v.innerHTML=`<div class="toolbar">
     <button class="btn sm primary" data-act="addTask">+ Task</button>
     <button class="btn sm" data-act="addHeader" title="Add a section header (e.g. a programme or workstream)">+ Header</button>
-    <button class="btn sm ${week?'accent':''}" data-act="tglWeek" title="Show this week's priorities">★ This week</button>
+    <span class="seg" title="List or timeline (roadmap) view of the same tasks">
+      <button class="btn sm ${road?'':'accent'}" data-act="setActionsView" data-v="list">List</button>
+      <button class="btn sm ${road?'accent':''}" data-act="setActionsView" data-v="roadmap">Roadmap</button>
+    </span>
+    ${road?'':`<button class="btn sm ${week?'accent':''}" data-act="tglWeek" title="Show this week's priorities">★ This week</button>`}
+    ${road?roadZoomControls():''}
     <div class="sp" style="flex:1"></div>
     <span class="small muted">${countOpenTasks()} open</span>
     <label class="small nowrap" style="margin-left:10px"><input type="checkbox" ${hide?'':'checked'} data-act="none" id="showDone"> show completed</label>
   </div>
-  ${week?renderWeekView():`<div class="card"><div class="card-b task-tree" id="ttree">${S.tasks.length?taskListHTML(S.tasks,hide,0):'<div class="empty">No tasks yet. Add one — Enter for the next, Tab to nest. Use + Header to group by programme or workstream.</div>'}</div></div>`}
-  <div class="small muted" style="margin-top:8px">Enter = new task below · Tab / Shift-Tab = nest / un-nest · click the state pill to cycle, the flag to set priority · tasks appear on the calendar by due date and completion date.</div>`;
+  ${road?renderRoadmap(hide)
+    :week?renderWeekView()
+    :`<div class="card"><div class="card-b task-tree" id="ttree">${S.tasks.length?taskListHTML(S.tasks,hide,0):'<div class="empty">No tasks yet. Add one — Enter for the next, Tab to nest. Use + Header to group by programme or workstream.</div>'}</div></div>`}
+  ${road?'<div class="small muted" style="margin-top:8px">Bars run start → due; a lone marker is a due date with no start. Click a bar to edit · click a header caret to fold, shared with the list.</div>'+roadTagKey()
+        :'<div class="small muted" style="margin-top:8px">Enter = new task below · Tab / Shift-Tab = nest / un-nest · click the state pill to cycle, the flag to set priority · tasks appear on the calendar by due date and completion date.</div>'+(week?'':dueLegend)}`;
   $('#showDone').onchange=e=>{ S.ui.hideDone=!e.target.checked; save(); render(); };
+  if(road) roadApplyScroll(prevScroll, prevScrollTop);
   ownerDatalist(); // build the owner autocomplete now, not only after focusing a task
 }
 function collectTasks(){ const out=[]; walkTasks(t=>{ if(t.type!=='header') out.push(t); }); return out; }
@@ -2168,6 +2340,134 @@ function renderWeekView(){ const wb=weekBounds(); const today=todayStr();
         <span class="small ${dueCls}" style="width:110px;text-align:right">${t.due?dstr(t.due):''}</span></div>`;
     }).join('')}</div></div>`;
 }
+/* ===== Actions · Roadmap (timeline) view ======================================================
+   Same tasks as the list, placed on a horizontal time axis and grouped into lanes by header.
+   Shares collapse state (t.collapsed) and the "show completed" toggle (S.ui.hideDone) with the list. */
+let roadRecenter=true; // center on today on first paint / zoom change / Today button (not on every edit)
+const ROAD_PX={day:34,week:13,month:4.6,quarter:2.3}; // pixels per day at each zoom
+function roadPx(){ return ROAD_PX[S.ui.roadZoom]||ROAD_PX.week; }
+function dnum(ds){ const p=ds.split('-'); return Math.round(Date.UTC(+p[0],+p[1]-1,+p[2])/86400000); } // UTC/DST-safe day number (local parsing drifts a day across a DST change, shifting weekend bands)
+function daysBetween(a,b){ return dnum(b)-dnum(a); }
+function weekStart(ds){ const d=new Date(ds+'T00:00'); d.setDate(d.getDate()-((d.getDay()+6)%7)); return iso(d); }
+function monthStart(ds){ return ds.slice(0,8)+'01'; }
+function workingDays(a,b){ if(!a||!b) return 0; let lo=a<b?a:b, hi=a<b?b:a, n=0; // weekdays (Mon–Fri) in [a,b] inclusive
+  for(let d=lo; d<=hi; d=addDays(d,1)){ const w=new Date(d+'T00:00').getDay(); if(w!==0&&w!==6) n++; } return n; }
+function wdAway(target){ const T=todayStr(); if(target===T) return 'today'; // working days from today to a single date
+  if(target>T) return 'in '+workingDays(addDays(T,1),target)+' working days';
+  return workingDays(target,addDays(T,-1))+' working days ago'; }
+function taskColor(t){ return (stateOf(t.stateId)||{}).color||'var(--ink-3)'; } // colour roadmap pills by task state
+function taskTagDot(t){ const tg=taskTagOf((t.tagIds||[])[0]); return tg?`<span class="rtagdot" style="background:${tg.color}" title="${esc(tg.name)}"></span>`:'<span class="rtagdot none"></span>'; } // small circle = first tag's colour
+function roadTagKey(){ const used=new Set(); walkTasks(t=>{ if(t.type!=='header') (t.tagIds||[]).forEach(id=>used.add(id)); });
+  const tags=(S.settings.taskTags||[]).filter(tg=>used.has(tg.id)); if(!tags.length) return '';
+  return `<div class="small muted" style="margin-top:6px;display:flex;gap:12px;flex-wrap:wrap;align-items:center"><span>Tags</span>`
+    +tags.map(tg=>`<span class="duekey"><i style="background:${tg.color};border-radius:50%"></i>${esc(tg.name)}</span>`).join('')+`</div>`; }
+function roadRange(){ let lo=null,hi=null; const add=ds=>{ if(!ds) return; if(lo===null||ds<lo) lo=ds; if(hi===null||ds>hi) hi=ds; };
+  walkTasks(t=>{ if(t.type==='header') return; add(t.start); add(t.due); add(t.completed); });
+  const today=todayStr(); add(today); if(!lo) lo=today; if(!hi) hi=today;
+  return {min:weekStart(addDays(lo,-4)), max:addDays(hi,10)}; } // pad + snap start to a Monday for tidy ticks
+function roadTicks(min,max,px){ const zoom=S.ui.roadZoom, out=[]; const push=(ds,label,cls)=>out.push({x:daysBetween(min,ds)*px,label,cls});
+  if(zoom==='day'){ for(let d=min; d<=max; d=addDays(d,1)){ const dt=new Date(d+'T00:00'), dow=dt.getDay();
+      push(d,(dt.getDate()===1?dt.toLocaleDateString('en-NZ',{month:'short'})+' ':'')+dt.getDate(), dow===1?'wk':((dow===0||dow===6)?'we':'')); } }
+  else if(zoom==='week'){ for(let d=weekStart(min); d<=max; d=addDays(d,7)){ const dt=new Date(d+'T00:00'); push(d, dt.getDate()+' '+dt.toLocaleDateString('en-NZ',{month:'short'}), dt.getDate()<=7?'mo':''); } }
+  else { let d=monthStart(min); while(d<=max){ const dt=new Date(d+'T00:00'), m=dt.getMonth(); push(d, dt.toLocaleDateString('en-NZ',{month:'short'})+(m===0?' '+dt.getFullYear():''), (m%3===0)?'q':''); d=iso(new Date(dt.getFullYear(),m+1,1)); } }
+  return out; }
+function roadZoomControls(){ const z=S.ui.roadZoom, b=(k,l)=>`<button class="btn sm ${z===k?'accent':''}" data-act="roadZoom" data-z="${k}">${l}</button>`;
+  return `<span class="seg" title="Zoom the time axis">${b('day','Day')}${b('week','Week')}${b('month','Month')}${b('quarter','Quarter')}</span>
+    <button class="btn sm" data-act="roadToday" title="Scroll to today">Today</button>`; }
+function renderRoadmap(hide){
+  const {min,max}=roadRange(), px=roadPx(), today=todayStr();
+  const totalDays=Math.max(1,daysBetween(min,max)), trackW=Math.ceil(totalDays*px), labelW=240;
+  const gridStep=S.ui.roadZoom==='day'?px:S.ui.roadZoom==='week'?px*7:px*30.4;
+  const wkndBg=(S.ui.roadZoom==='day'||S.ui.roadZoom==='week') // min is a Monday → days 5–6 are Sat/Sun; shade them full height
+    ?`,repeating-linear-gradient(90deg,transparent 0 ${(5*px).toFixed(2)}px,var(--weekend) ${(5*px).toFixed(2)}px ${(7*px).toFixed(2)}px)`:'';
+  const gridBg=`background-image:repeating-linear-gradient(90deg,var(--line) 0 1px,transparent 1px ${gridStep}px)${wkndBg}`;
+  const pill=t=>{ const done=stateOf(t.stateId).done, col=taskColor(t), who=t.owner?' · '+t.owner:'';
+    if(t.start&&t.due&&t.due>=t.start){ const x=daysBetween(min,t.start)*px, w=Math.max(px*0.8,daysBetween(t.start,t.due)*px);
+      return `<div class="road-pill span${done?' done':''}" data-act="roadOpen" data-id="${t.id}" style="left:${x}px;width:${w}px;background:${col}26;border-color:${col}" title="${esc(t.name)} · ${t.start} → ${t.due} · ${workingDays(t.start,t.due)} working days${esc(who)}"><span class="rp-grip rp-grip-l" title="Drag to change the start date"></span><span class="rp-dot" style="background:${col}"></span><span class="rp-lab">${esc(t.name||'(untitled)')}${esc(who)}</span><span class="rp-grip rp-grip-r" title="Drag to change the due date"></span></div>`; }
+    const anchor=t.due||t.start||t.completed; if(!anchor) return '';
+    const x=daysBetween(min,anchor)*px;
+    return `<div class="road-pill mark${done?' done':''}" data-act="roadOpen" data-id="${t.id}" style="left:${x}px" title="${esc(t.name)} · ${anchor} · ${esc(wdAway(anchor))}${esc(who)}"><span class="rp-dot" style="background:${col}"></span><span class="rp-lab out">${esc(t.name||'(untitled)')}${esc(who)}</span></div>`; };
+  const rows=(list,depth)=>list.filter(t=>t.type==='header'||!hide||!stateOf(t.stateId).done||hasOpenDesc(t)).map(t=>{
+    const kids=(t.children||[]), pad=depth*14;
+    const caret=kids.length?`<span class="caret" data-act="tglTask" data-id="${t.id}">${t.collapsed?'▶':'▼'}</span>`:`<span class="caret chidden"></span>`;
+    if(t.type==='header'){
+      const r=`<div class="road-row rhead"><div class="road-label" style="padding-left:${8+pad}px">${caret}<b>${esc(t.name||'(section)')}</b></div><div class="road-track" style="width:${trackW}px;${gridBg}"></div></div>`;
+      return r+(kids.length&&!t.collapsed?rows(kids,depth+1):''); }
+    const done=stateOf(t.stateId).done, open=S.ui.roadOpen===t.id;
+    const r=`<div class="road-row rtask${done?' rdone':''}${open?' ropen':''}" data-act="roadOpen" data-id="${t.id}" title="Click to edit${(t.start||t.due||t.completed)?'':' / add dates'}"><div class="road-label" style="padding-left:${8+pad}px">${caret}${taskTagDot(t)}<span class="rname">${esc(t.name||'(untitled)')}</span></div><div class="road-track" style="width:${trackW}px;${gridBg}">${pill(t)}</div></div>`;
+    return r+(kids.length&&!t.collapsed?rows(kids,depth+1):''); }).join('');
+  const ticks=roadTicks(min,max,px).map(tk=>`<div class="road-tick ${tk.cls||''}" style="left:${tk.x}px"><span>${esc(tk.label)}</span></div>`).join('');
+  const body=S.tasks.length?rows(S.tasks,0):'<div class="road-row"><div class="road-label">&nbsp;</div><div class="road-track" style="width:'+trackW+'px"><div class="empty" style="position:absolute;left:16px;top:8px">No tasks yet — add one, give it a due (and optionally a start) date.</div></div></div>';
+  const todayX=labelW+daysBetween(min,today)*px;
+  const openT=S.ui.roadOpen?(findTask(S.ui.roadOpen)||{}).t:null; // the detail is a centered pop-up, not an inline row (no reflow, always on-screen)
+  return `<div class="road-scroll" id="roadScroll"><div class="road-grid" style="width:${labelW+trackW}px">
+    <div class="road-axis"><div class="road-corner">Lane / task</div><div class="road-axis-track" style="width:${trackW}px;${gridBg}">${ticks}</div></div>
+    ${body}
+    <div class="road-today" id="roadToday" style="left:${todayX}px" title="Today"></div>
+  </div></div>${openT?roadDetailHTML(openT):''}`; }
+function roadDetailHTML(t){ const pr=priorityOf(t.priorityId);
+  return `<div class="road-detail"><div class="rd-card">
+    <div class="rd-row">
+      <span class="prio ${pr?'':'none'}" data-act="cyclePriority" data-id="${t.id}" title="${pr?esc(pr.name):'Set priority'}" ${pr?`style="background:${pr.color}"`:''}>${pr?esc(pr.name.split(' ')[0]):'⚑'}</span>
+      <select class="pillsel" onchange="setTaskState('${t.id}',this.value)" title="Change state">${S.settings.taskStates.map(s=>`<option value="${s.id}" ${s.id===t.stateId?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
+      <input class="tname" value="${esc(t.name)}" placeholder="Task…" data-tname="${t.id}" style="flex:1">
+      <button class="btn sm ghost" data-act="roadClose" title="Close">✕</button>
+    </div>
+    <div class="rd-row">
+      <label class="rd-f">Start <input type="date" data-tstart="${t.id}" value="${esc(t.start||'')}"></label>
+      <label class="rd-f">Due <input type="date" data-tdue="${t.id}" value="${esc(t.due||'')}"></label>
+      <label class="rd-f">Owner <input class="rd-owner" data-towner="${t.id}" value="${esc(t.owner||'')}" list="ownerlist" placeholder="person"></label>
+      <button class="btn sm ghost" data-act="taskTagMenu" data-id="${t.id}" title="Tags">🏷</button>
+      <button class="btn sm ghost" data-act="taskLink" data-id="${t.id}" title="Link">🔗</button>
+    </div>
+    ${((t.tagIds||[]).length||(t.links||[]).length)?`<div class="rd-row rd-tags">${(t.tagIds||[]).map(id=>{const tg=taskTagOf(id);return tg?`<span class="chip" data-act="taskTagMenu" data-id="${t.id}" style="border-color:${tg.color};background:${tg.color}1a">${esc(tg.name)}</span>`:'';}).join('')}${(t.links||[]).map(l=>chipHTML(l,'task:'+t.id)).join('')}</div>`:''}
+    <div class="rd-row"><textarea data-tnotes="${t.id}" placeholder="Notes…">${esc(t.notes||'')}</textarea></div>
+  </div></div>`; }
+function roadApplyScroll(prev, prevTop){ const sc=$('#roadScroll'); if(!sc) return;
+  if(roadRecenter){ roadRecenter=false; const tl=$('#roadToday'); const x=tl?(parseFloat(tl.style.left)||0):0; sc.scrollLeft=Math.max(0,x-sc.clientWidth/2); }
+  else sc.scrollLeft=prev;
+  sc.scrollTop=prevTop||0; } // keep the vertical position too, so opening/editing a task never jumps the list
+ACTIONS.setActionsView=el=>{ S.ui.actionsView=el.dataset.v; if(el.dataset.v==='roadmap') roadRecenter=true; save(); render(); };
+ACTIONS.roadZoom=el=>{ S.ui.roadZoom=el.dataset.z; roadRecenter=true; save(); render(); };
+ACTIONS.roadToday=()=>{ roadRecenter=true; render(); };
+ACTIONS.roadOpen=el=>{ if(roadSuppressClick){ roadSuppressClick=false; return; } if(S.ui.roadOpen===el.dataset.id) return; S.ui.roadOpen=el.dataset.id; save(); render(); }; // open/switch only; ignore the click a just-finished drag fires
+ACTIONS.roadClose=()=>{ S.ui.roadOpen=''; save(); render(); };
+document.addEventListener('click',e=>{ // click outside the open detail closes it (no need for the ✕)
+  if(!S||!S.ui||!S.ui.roadOpen||TAB!=='actions'||S.ui.actionsView!=='roadmap') return;
+  if(roadSuppressClick){ roadSuppressClick=false; return; } // a drag just finished
+  if(e.target.closest('.road-detail')||e.target.closest('[data-act]')||e.target.closest('#modal')) return; // in the editor, a button/row, or a spawned modal
+  const md=$('#modal'); if(md&&md.open) return; // a tag/link picker is open over it
+  S.ui.roadOpen=''; save(); render(); });
+/* drag a roadmap pill to adjust dates: body = move both dates, grips = change start/due */
+let roadDrag=null, roadSuppressClick=false;
+function roadDragStart(e){ roadSuppressClick=false; // any new interaction starts here — clear a stale drag-click guard
+  if(e.button) return; if(!S||TAB!=='actions'||S.ui.actionsView!=='roadmap') return;
+  const pill=e.target.closest('.road-pill'); if(!pill) return;
+  const r=findTask(pill.dataset.id); if(!r) return; const t=r.t, span=!!(t.start&&t.due&&t.due>=t.start);
+  let mode; if(e.target.closest('.rp-grip-l')) mode='start'; else if(e.target.closest('.rp-grip-r')) mode='due';
+  else if(span) mode='move'; else mode=t.due?'due':(t.start?'start':null);
+  if(!mode) return;
+  roadDrag={ id:pill.dataset.id, mode, span, pill, startX:e.clientX, px:roadPx(), moved:false, origLeft:parseFloat(pill.style.left)||0, origWidth:parseFloat(pill.style.width)||0 };
+  document.addEventListener('pointermove',roadDragMove); document.addEventListener('pointerup',roadDragUp,{once:true}); }
+function roadDragMove(e){ if(!roadDrag) return; const dx=e.clientX-roadDrag.startX;
+  if(Math.abs(dx)>3){ roadDrag.moved=true; e.preventDefault(); } if(!roadDrag.moved) return;
+  const px=roadDrag.px, d=Math.round(dx/px), p=roadDrag.pill; p.classList.add('dragging');
+  if(roadDrag.mode==='move') p.style.left=(roadDrag.origLeft+d*px)+'px';
+  else if(roadDrag.mode==='due'){ if(roadDrag.span){ let w=roadDrag.origWidth+d*px; if(w<px*0.5)w=px*0.5; p.style.width=w+'px'; } else p.style.left=(roadDrag.origLeft+d*px)+'px'; }
+  else if(roadDrag.mode==='start'){ if(roadDrag.span){ let sh=d*px, mx=roadDrag.origWidth-px*0.5; if(sh>mx)sh=mx; p.style.left=(roadDrag.origLeft+sh)+'px'; p.style.width=(roadDrag.origWidth-sh)+'px'; } else p.style.left=(roadDrag.origLeft+d*px)+'px'; }
+  const r=findTask(roadDrag.id); if(r){ const t=r.t; let s=t.start,u=t.due;
+    if(roadDrag.mode==='move'){ s=addDays(t.start,d); u=addDays(t.due,d); } else if(roadDrag.mode==='start'){ s=addDays(t.start||t.due,d); if(u&&s>u)s=u; } else { u=addDays(t.due,d); if(roadDrag.span&&u<t.start)u=t.start; }
+    p.title=(s?('start '+s+(u?' · ':'')):'')+(u?('due '+u):'')+((s&&u&&u>=s)?(' · '+workingDays(s,u)+' working days'):''); } }
+function roadDragUp(e){ document.removeEventListener('pointermove',roadDragMove); const dr=roadDrag; roadDrag=null; if(!dr) return;
+  const d=Math.round((e.clientX-dr.startX)/dr.px);
+  if(!dr.moved||d===0){ if(dr.pill) dr.pill.classList.remove('dragging'); return; } // a plain click → let it open the editor
+  roadSuppressClick=true; // the click this drag fires must not open/close the editor
+  const r=findTask(dr.id); if(!r) return; const t=r.t;
+  if(dr.mode==='move'){ t.start=addDays(t.start,d); t.due=addDays(t.due,d); }
+  else if(dr.mode==='start'){ let ns=addDays(t.start||t.due,d); if(t.due&&ns>t.due) ns=t.due; t.start=ns; }
+  else { let nu=addDays(t.due,d); if(dr.span&&nu<t.start) nu=t.start; t.due=nu; }
+  touch(t); save(); render(); }
+document.addEventListener('pointerdown',roadDragStart);
 function taskListHTML(list,hide,depth){ return list.filter(t=>t.type==='header'||!hide||!stateOf(t.stateId).done||hasOpenDesc(t)).map(t=>taskHTML(t,hide,depth)).join(''); }
 function hasOpenDesc(t){ let open=false; walkTasks(x=>{ if(x.type!=='header'&&!stateOf(x.stateId).done) open=true; },t.children||[]); return open; }
 function taskHTML(t,hide,depth){
@@ -2184,8 +2484,6 @@ function taskHTML(t,hide,depth){
         <span class="rowtools">
           <button class="btn sm ghost" data-act="addSub" data-id="${t.id}" title="Add task inside">＋ task</button>
           <button class="btn sm ghost" data-act="addSubHeader" data-id="${t.id}" title="Add sub-header inside">＋ header</button>
-          <button class="btn sm ghost" data-act="outdentTask" data-id="${t.id}" title="Un-nest">⇤</button>
-          <button class="btn sm ghost" data-act="indentTask" data-id="${t.id}" title="Nest">⇥</button>
           <button class="btn sm ghost danger" data-act="delTask" data-id="${t.id}" title="Delete">✕</button>
         </span></div>${kidsHTML}</div>`;
   }
@@ -2197,21 +2495,21 @@ function taskHTML(t,hide,depth){
       <span class="prio ${pr?'':'none'}" data-act="cyclePriority" data-id="${t.id}" title="${pr?esc(pr.name):'Set priority'}" ${pr?`style="background:${pr.color}"`:''}>${pr?esc(pr.name.split(' ')[0]):'⚑'}</span>
       <select class="pillsel" onchange="setTaskState('${t.id}',this.value)" style="background:${st.color}1c;color:${st.color};border-color:${st.color}55" title="Change state — pick any, including back to To do">${S.settings.taskStates.map(s=>`<option value="${s.id}" ${s.id===t.stateId?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
       <input class="tname" value="${esc(t.name)}" placeholder="Task…" data-tname="${t.id}">
-      <span class="tlinks">${(t.tagIds||[]).map(id=>{const tg=taskTagOf(id);return tg?`<span class="chip" data-act="taskTagMenu" data-id="${t.id}" style="border-color:${tg.color};background:${tg.color}1a">${esc(tg.name)}</span>`:'';}).join('')}${(t.links||[]).map(l=>chipHTML(l,'task:'+t.id)).join('')}</span>
-      ${(t.notes||t.showNotes)?`<span class="notebtn ${t.showNotes?'open':''}" data-act="taskNotes" data-id="${t.id}" title="Notes — click to ${t.showNotes?'hide':'view'}">🗒 ${t.showNotes?'▾':'▸'}</span>`:''}
+      ${t.lastActioned?`<span class="tedited" title="Last actioned ${esc(dstr(t.lastActioned))}">↻ ${esc(dstr(t.lastActioned))}</span>`:''}
+      <span class="tlinks">${(t.tagIds||[]).map(id=>{const tg=taskTagOf(id);return tg?`<span class="chip" data-act="taskTagMenu" data-id="${t.id}" style="border-color:${tg.color};background:${tg.color}1a">${esc(tg.name)}</span>`:'';}).join('')}${(t.links||[]).map(l=>chipHTML(l,'task:'+t.id)).join('')}${(t.notes||t.showNotes)?`<span class="notebtn ${t.showNotes?'open':''}" data-act="taskNotes" data-id="${t.id}" title="Notes — click to ${t.showNotes?'hide':'view'}">🗒 ${t.showNotes?'▾':'▸'}</span>`:''}</span>
+      <span class="trowfill"></span>
       <span class="meta">
         <input class="towner" value="${esc(t.owner||'')}" placeholder="owner" data-towner="${t.id}" title="Owner / person" list="ownerlist">
         <span class="rowtools">
           <button class="btn sm ghost" data-act="taskTagMenu" data-id="${t.id}" title="Tags">🏷</button>
           <button class="btn sm ghost" data-act="taskLink" data-id="${t.id}" title="Link to contract / PO / event / budget…">🔗</button>
           <button class="btn sm ghost" data-act="taskNotes" data-id="${t.id}" title="Notes">🗒</button>
-          <button class="btn sm ghost" data-act="addSub" data-id="${t.id}" title="Add sub-task">＋</button>
-          <button class="btn sm ghost" data-act="outdentTask" data-id="${t.id}" title="Un-nest">⇤</button>
-          <button class="btn sm ghost" data-act="indentTask" data-id="${t.id}" title="Nest under task above">⇥</button>
           <button class="btn sm ghost danger" data-act="delTask" data-id="${t.id}" title="Delete">✕</button>
         </span>
-        <input type="date" class="${dueCls}" value="${esc(t.due||'')}" data-tdue="${t.id}" title="Due date">
-        <span title="Last actioned — edit if you followed up on a different day">↻ <input type="date" class="tlast" value="${esc(t.lastActioned||'')}" data-tlast="${t.id}"></span>
+        <span class="startcol">${(t.start||t.showStart)
+          ? `<span class="tstartwrap" title="${esc(startTitle(t.start))}">⇤ <input type="date" class="tstart ${startClass(t.start,st.done)}" value="${esc(t.start||'')}" data-tstart="${t.id}"></span>`
+          : `<span class="startbtn" data-act="tglStart" data-id="${t.id}" title="Add a start date — turns this into a span on the roadmap">⇤📅</span>`}</span>
+        <input type="date" class="${dueCls}" value="${esc(t.due||'')}" data-tdue="${t.id}" title="${esc(dueTitle(t.due))}" style="--fill:${dueFill(t.due,st.done)}%">
       </span>
     </div>
     ${t.showNotes?`<div class="task-notes"><textarea data-tnotes="${t.id}" placeholder="Notes…">${esc(t.notes||'')}</textarea></div>`:''}
@@ -2219,9 +2517,18 @@ function taskHTML(t,hide,depth){
   </div>`;
 }
 function addDays(ds,n){ const d=new Date(ds+'T00:00'); d.setDate(d.getDate()+n); return iso(d); }
-function dueClass(due,done){ if(!due||done) return 'due-far';
-  const t=todayStr(); if(due<t) return 'due-over'; if(due<=addDays(t,3)) return 'due-soon'; if(due<=addDays(t,14)) return 'due-near'; return 'due-far'; }
-function isEmptyTask(t){ return t.type==='task' && !(t.name||'').trim() && !(t.notes||'').trim() && !t.due && !(t.owner||'').trim()
+function dueClass(due,done){ if(!due||done) return 'dd-none';
+  const t=todayStr(); if(due<t) return 'dd dd-over'; const d=daysBetween(t,due);
+  if(d===0) return 'dd dd-today'; if(d<=3) return 'dd dd-soon'; if(d<=7) return 'dd dd-week'; if(d<=14) return 'dd dd-next'; return 'dd dd-far'; }
+function dueFill(due,done){ if(!due||done) return 0; const d=daysBetween(todayStr(),due); // bar fills 8%→100% as the date nears (horizon ~4 weeks)
+  if(d<=0) return 100; return Math.max(8,Math.min(100,Math.round((1-d/28)*100))); }
+function startClass(start,done){ if(!start||done) return '';
+  const d=daysBetween(todayStr(),start); if(d<=0) return 'st-active'; if(d<=7) return 'st-soon'; return 'st-later'; }
+function dueTitle(due){ if(!due) return 'Due date'; const d=daysBetween(todayStr(),due);
+  if(d<0) return 'Overdue by '+(-d)+(-d===1?' day':' days'); if(d===0) return 'Due today'; return 'Due in '+d+(d===1?' day':' days'); }
+function startTitle(start){ if(!start) return 'Start date — when work begins'; const d=daysBetween(todayStr(),start);
+  if(d<0) return 'Started '+(-d)+(-d===1?' day':' days')+' ago'; if(d===0) return 'Starts today'; return 'Starts in '+d+(d===1?' day':' days'); }
+function isEmptyTask(t){ return t.type==='task' && !(t.name||'').trim() && !(t.notes||'').trim() && !t.due && !t.start && !(t.owner||'').trim()
   && !(t.links||[]).length && !(t.tagIds||[]).length && !t.priorityId && (!t.children||!t.children.length)
   && t.stateId===(S.settings.taskStates[0]||{}).id; }
 function pruneEmptyTasks(){ let removed=0; const walk=list=>{ for(let i=list.length-1;i>=0;i--){ const t=list[i];
@@ -2237,6 +2544,7 @@ ACTIONS.tglWeek=()=>{ S.ui.taskWeekOnly=!S.ui.taskWeekOnly; save(); render(); };
 ACTIONS.addSub=el=>{ const r=findTask(el.dataset.id); if(!r) return; r.t.children=r.t.children||[]; const t=newTask(); r.t.children.push(t); r.t.collapsed=false; if(r.t.type!=='header') touch(r.t); save(); render(); focusTask(t.id); };
 ACTIONS.addSubHeader=el=>{ const r=findTask(el.dataset.id); if(!r) return; r.t.children=r.t.children||[]; const h=newHeader(); r.t.children.push(h); r.t.collapsed=false; save(); render(); focusTask(h.id); };
 ACTIONS.tglTask=el=>{ const r=findTask(el.dataset.id); if(r){ r.t.collapsed=!r.t.collapsed; save(); render(); } };
+ACTIONS.tglStart=el=>{ const r=findTask(el.dataset.id); if(r){ r.t.showStart=true; save(); render(); const i=document.querySelector(`input[data-tstart="${r.t.id}"]`); if(i){ i.focus(); if(i.showPicker) try{ i.showPicker(); }catch(e){} } } };
 ACTIONS.cycleState=el=>{ const r=findTask(el.dataset.id); if(!r) return;
   const states=S.settings.taskStates; const i=states.findIndex(s=>s.id===r.t.stateId);
   r.t.stateId=states[(i+1)%states.length].id; touch(r.t);
@@ -2279,9 +2587,9 @@ function focusTask(id){ setTimeout(()=>{ const i=document.querySelector(`[data-t
 /* task field editing via delegation */
 document.addEventListener('change',e=>{
   const n=e.target.closest('[data-tname]'); if(n){ const r=findTask(n.dataset.tname); if(r){ r.t.name=n.value; if(r.t.type!=='header')touch(r.t); save(); } return; }
+  const ds=e.target.closest('[data-tstart]'); if(ds){ const r=findTask(ds.dataset.tstart); if(r){ r.t.start=ds.value; if(!r.t.start) r.t.showStart=false; touch(r.t); save(); renderKeepFocus(); } return; }
   const d=e.target.closest('[data-tdue]'); if(d){ const r=findTask(d.dataset.tdue); if(r){ r.t.due=d.value; touch(r.t); save(); renderKeepFocus(); } return; }
   const o=e.target.closest('[data-towner]'); if(o){ const r=findTask(o.dataset.towner); if(r){ r.t.owner=o.value; touch(r.t); save(); ownerDatalist(); } return; }
-  const la=e.target.closest('[data-tlast]'); if(la){ const r=findTask(la.dataset.tlast); if(r){ r.t.lastActioned=la.value; save(); } return; }
   const x=e.target.closest('[data-tnotes]'); if(x){ const r=findTask(x.dataset.tnotes); if(r){ r.t.notes=x.value; touch(r.t); save(); } return; }
 });
 document.addEventListener('keydown',e=>{
@@ -2306,7 +2614,7 @@ function newBlock(type){ const b={id:uid(),type:type||'p',html:''};
   if(type==='table'){ b.rows=[['Column','Column'],['','']]; }
   return b;
 }
-const BLOCK_PH={p:'Type “/” for headings, bullets, toggles, tables, links… (this is a free notes area)',h1:'Heading 1',h2:'Heading 2',h3:'Heading 3',bullet:'List item',callout:'Callout',toggle:'Toggle heading'};
+const BLOCK_PH={p:'Type “/” for headings, bullets, toggles, tables, links… (this is a free notes area)',h1:'Heading 1',h2:'Heading 2',h3:'Heading 3',bullet:'List item',number:'List item',callout:'Callout',toggle:'Toggle heading'};
 
 /* ---- Behaviour Change Wheel taxonomy (used by cascading grid dropdowns) ---- */
 const LMH=['Low','Medium','High'];
@@ -2442,7 +2750,7 @@ const NOTE_TEMPLATES={
   links:{name:'Links database',icon:'🔗',kind:'links',blocks:()=>[]},
 };
 
-function blockHTML(b){
+function blockHTML(b,ord){
   const handle=`<span class="handle" data-act="blockMenu" data-id="${b.id}" title="Block options">⋮⋮</span>`;
   if(b.type==='divider') return `<div class="blk t-divider" data-blk="${b.id}">${handle}</div>`;
   if(b.type==='grid'){
@@ -2476,12 +2784,64 @@ function blockHTML(b){
     return `<div class="blk t-toggle" data-blk="${b.id}">${handle}
       <div class="tg-head"><span class="tgc" data-act="tglBlock" data-id="${b.id}">${b.open?'▼':'▶'}</span>
       <div class="bc" contenteditable="true" data-bid="${b.id}" data-ph="Toggle heading">${b.html}</div></div>
-      ${b.open?`<div class="tg-kids">${(b.children||[]).map(blockHTML).join('')}
+      ${b.open?`<div class="tg-kids">${blocksHTML(b.children||[])}
         <div class="small muted" style="padding:2px 6px;cursor:pointer" data-act="addChildBlock" data-id="${b.id}">+ add inside</div></div>`:''}</div>`;
   }
-  return `<div class="blk t-${b.type}" data-blk="${b.id}">${handle}<div class="bc" contenteditable="true" data-bid="${b.id}" data-ph="${BLOCK_PH[b.type]||''}">${b.html}</div></div>`;
+  const ind=(b.indent||0); const indStyle=ind?` style="margin-left:${ind*24}px"`:'';
+  return `<div class="blk t-${b.type}" data-blk="${b.id}"${b.type==='number'?` data-ord="${ord||1}"`:''}${indStyle}>${handle}<div class="bc" contenteditable="true" data-bid="${b.id}" data-ph="${BLOCK_PH[b.type]||''}">${b.html}</div></div>`;
 }
+/* render a list of blocks; number "number" blocks per indent level. A block ends numbering only at its own level and deeper, so a parent numbered list keeps counting across nested sub-items. */
+function blocksHTML(list){ const c=[]; return (list||[]).map(b=>{ const L=b.indent||0; if(b.type==='number'){ c[L]=(c[L]||0)+1; c.length=L+1; return blockHTML(b,c[L]); } c.length=L; return blockHTML(b); }).join(''); }
+/* ===== multi-block selection: Shift-click or drag across blocks, then Ctrl/Cmd-C copy, X cut, Delete, Esc ===== */
+let selBlocks=[], selAnchor=null;
+function topBlockOf(el){ if(!el) return null; let b=el.closest&&el.closest('.blk[data-blk]'); if(!b) return null;
+  while(b.parentElement&&b.parentElement.id!=='doc'){ const up=b.parentElement.closest&&b.parentElement.closest('.blk[data-blk]'); if(!up) break; b=up; }
+  return (b.parentElement&&b.parentElement.id==='doc')?b:null; }
+function topIds(){ return [...document.querySelectorAll('#doc > .blk[data-blk]')].map(e=>e.dataset.blk); }
+function paintSel(){ document.querySelectorAll('.blk.selblk').forEach(e=>e.classList.remove('selblk')); selBlocks.forEach(id=>{ const el=document.querySelector(`#doc > .blk[data-blk="${id}"]`); if(el) el.classList.add('selblk'); }); }
+function clearSel(){ if(selBlocks.length){ selBlocks=[]; paintSel(); } }
+function selectRange(aId,bId){ const ids=topIds(); let i=ids.indexOf(aId), j=ids.indexOf(bId); if(i<0||j<0) return; if(i>j){ const t=i;i=j;j=t; }
+  selBlocks=ids.slice(i,j+1); paintSel();
+  const s=window.getSelection&&window.getSelection(); if(s&&s.removeAllRanges) try{ s.removeAllRanges(); }catch(e){}
+  if(document.activeElement&&document.activeElement.closest&&document.activeElement.closest('.bc')) document.activeElement.blur(); }
+function blockPlain(b){ const t=htmlToText(b.html||''), pad='  '.repeat(b.indent||0); switch(b.type){ case 'h1':return '# '+t; case 'h2':return '## '+t; case 'h3':return '### '+t; case 'bullet':return pad+'- '+t; case 'number':return pad+'1. '+t; case 'callout':return '> '+t; case 'divider':return '---'; default:return pad+t; } }
+function copySel(cut){ if(!selBlocks.length) return; const ids=topIds().filter(id=>selBlocks.includes(id));
+  const text=ids.map(id=>{ const r=findBlock(id); return r?blockPlain(r.b):''; }).join('\n');
+  try{ navigator.clipboard.writeText(text); }catch(e){ try{ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.left='-9999px'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }catch(_){} }
+  const n=ids.length; if(cut){ deleteSel(); toast(n+' block'+(n>1?'s':'')+' cut'); } else toast(n+' block'+(n>1?'s':'')+' copied'); }
+function deleteSel(){ if(!selBlocks.length) return; const pg=curPage(); const kill=new Set(selBlocks);
+  pg.blocks=(pg.blocks||[]).filter(b=>!kill.has(b.id)); if(!pg.blocks.length) pg.blocks=[newBlock('p')]; selBlocks=[]; save(); render(); }
+document.addEventListener('mousedown',e=>{ const inDoc=e.target.closest&&e.target.closest('#doc'); if(!inDoc){ clearSel(); return; }
+  const tb=topBlockOf(e.target);
+  if((e.shiftKey)&&tb){ e.preventDefault(); e.stopPropagation(); selectRange(selAnchor||tb.dataset.blk,tb.dataset.blk); return; }
+  if((e.metaKey||e.ctrlKey)&&tb){ e.preventDefault(); e.stopPropagation(); const id=tb.dataset.blk;
+    selBlocks = selBlocks.includes(id) ? selBlocks.filter(x=>x!==id) : topIds().filter(x=>selBlocks.includes(x)||x===id);
+    selAnchor=id; paintSel(); return; }
+  if(tb) selAnchor=tb.dataset.blk; clearSel(); },true);
+document.addEventListener('mouseup',()=>{ setTimeout(()=>{ const s=window.getSelection&&window.getSelection(); if(!s||s.isCollapsed) return;
+  const ab=topBlockOf(s.anchorNode&&(s.anchorNode.nodeType===1?s.anchorNode:s.anchorNode.parentElement));
+  const fb=topBlockOf(s.focusNode&&(s.focusNode.nodeType===1?s.focusNode:s.focusNode.parentElement));
+  if(ab&&fb&&ab!==fb) selectRange(ab.dataset.blk,fb.dataset.blk); },0); });
+document.addEventListener('keydown',e=>{ if(!selBlocks.length) return; const k=e.key.toLowerCase(), mod=e.metaKey||e.ctrlKey;
+  if(mod&&k==='c'){ e.preventDefault(); copySel(false); }
+  else if(mod&&k==='x'){ e.preventDefault(); copySel(true); }
+  else if(k==='delete'||k==='backspace'){ e.preventDefault(); deleteSel(); }
+  else if(k==='escape'){ clearSel(); } });
+/* paste multi-line text as separate blocks (so copied blocks paste back as blocks) */
+function lineToBlock(line){ const lead=(line.match(/^[\t ]*/)||[''])[0]; const indent=Math.min(6,Math.floor(lead.replace(/\t/g,'  ').length/2)); let ty='p', h=line.trim(), m;
+  if(m=h.match(/^#{3}\s+(.*)/)){ ty='h3'; h=m[1]; } else if(m=h.match(/^#{2}\s+(.*)/)){ ty='h2'; h=m[1]; } else if(m=h.match(/^#\s+(.*)/)){ ty='h1'; h=m[1]; }
+  else if(m=h.match(/^\d+[.)]\s+(.*)/)){ ty='number'; h=m[1]; } else if(m=h.match(/^[-*•]\s+(.*)/)){ ty='bullet'; h=m[1]; }
+  return {type:ty, html:esc(h), indent:(ty==='bullet'||ty==='number')?indent:0}; }
+document.addEventListener('paste',e=>{ const bc=e.target.closest&&e.target.closest('.bc[data-bid]'); if(!bc) return;
+  const cd=e.clipboardData||window.clipboardData; if(!cd) return; const text=cd.getData('text/plain')||'';
+  if(text.indexOf('\n')<0) return; // single line → native inline paste
+  e.preventDefault(); const r=findBlock(bc.dataset.bid); if(!r) return; r.b.html=bc.innerHTML;
+  const lines=text.replace(/\r/g,'').split('\n'); while(lines.length&&!lines[0].trim())lines.shift(); while(lines.length&&!lines[lines.length-1].trim())lines.pop();
+  if(!lines.length) return; const made=lines.map(l=>{ const x=lineToBlock(l); return Object.assign(newBlock(x.type),{html:x.html,indent:x.indent||0}); });
+  if(htmlToText(r.b.html).trim()===''){ r.list.splice(r.idx,1,...made); } else { r.list.splice(r.idx+1,0,...made); }
+  save(); render(); focusBlock(made[made.length-1].id,true); });
 function renderStatus(v){
+  selBlocks=[]; // a fresh notes render clears any block selection
   const pg=curPage();
   const rail=`<div class="note-rail">
     ${S.notes.map(p=>`<button class="note-tab ${p.id===pg.id?'on':''}" data-act="notePage" data-id="${p.id}"><span>${p.icon||'📄'}</span> ${esc(p.name)}</button>`).join('')}
@@ -2493,8 +2853,8 @@ function renderStatus(v){
       <input class="ptitle" value="${esc(pg.name)}" data-pgname="${pg.id}" placeholder="Untitled">
       <span class="sp" style="flex:1"></span>
       <button class="btn sm ghost danger" data-act="delNotePage" data-id="${pg.id}" title="Delete page">Delete page</button></div>
-    ${(pg.blocks||[]).map(blockHTML).join('')}
-    <div class="blk"><div class="bc muted small" data-act="addBlockEnd" style="cursor:text;padding-top:10px">+ Click to add a block — press “/” for headings, toggles, tables and links</div></div></div>`; }
+    ${blocksHTML(pg.blocks)}
+    <div class="blk"><div class="bc muted small" data-act="addBlockEnd" style="cursor:text;padding-top:10px">+ Click to add a block — press “/” for headings, lists, toggles, tables and links · drag or Shift-click to select blocks, then Ctrl/Cmd-C to copy</div></div></div>`; }
   v.innerHTML=rail+doc;
 }
 ACTIONS.notePage=t=>{ S.ui.notePage=t.dataset.id; save(); render(); };
@@ -2558,7 +2918,7 @@ ACTIONS.tblDelRow=t=>{ const r=findBlock(t.dataset.id); if(r&&r.b.rows.length>1)
 ACTIONS.tblDelCol=t=>{ const r=findBlock(t.dataset.id); if(r&&r.b.rows[0].length>1){ r.b.rows.forEach(row=>row.pop()); save(); render(); } };
 
 ACTIONS.blockMenu=t=>{ const id=t.dataset.id; const r=findBlock(id); if(!r) return;
-  const types=[['p','Text'],['h1','Heading 1'],['h2','Heading 2'],['h3','Heading 3'],['bullet','Bullet'],['callout','Callout'],['toggle','Toggle']];
+  const types=[['p','Text'],['h1','Heading 1'],['h2','Heading 2'],['h3','Heading 3'],['bullet','Bullet'],['number','Numbered'],['callout','Callout'],['toggle','Toggle']];
   modal(`<div class="m-h"><h3>Block</h3></div><div class="m-b">
     <div class="small muted" style="margin-bottom:6px">Turn into</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
@@ -2615,37 +2975,58 @@ document.addEventListener('focusout',e=>{
 document.addEventListener('keydown',e=>{
   const bc=e.target.closest&&e.target.closest('.bc[data-bid]'); if(!bc) return;
   const r=findBlock(bc.dataset.bid); if(!r) return;
+  // slash menu open → arrows/Enter/Tab drive it
+  const menu=$('#slashmenu');
+  if(slashFor===r.b.id && menu && menu.style.display==='block' && slashItems.length){
+    if(e.key==='ArrowDown'){ e.preventDefault(); slashIdx=(slashIdx+1)%slashItems.length; renderSlashSel(); return; }
+    if(e.key==='ArrowUp'){ e.preventDefault(); slashIdx=(slashIdx-1+slashItems.length)%slashItems.length; renderSlashSel(); return; }
+    if(e.key==='Enter'||e.key==='Tab'){ e.preventDefault(); applySlash(slashItems[slashIdx][0]); return; }
+    if(e.key==='Escape'){ e.preventDefault(); hideSlash(); return; }
+  }
+  if(e.key==='Tab'&&(r.b.type==='bullet'||r.b.type==='number')){ e.preventDefault(); r.b.html=bc.innerHTML; // indent / un-indent list items for nesting
+    const cur=r.b.indent||0;
+    if(e.shiftKey) r.b.indent=Math.max(0,cur-1);
+    else { const prev=r.idx>0?r.list[r.idx-1]:null; const max=prev?((prev.indent||0)+1):0; r.b.indent=Math.min(max,cur+1); } // can't go deeper than one level below the item above
+    save(); render(); focusBlock(r.b.id,true); return; }
   if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); hideSlash();
     r.b.html=bc.innerHTML;
-    const nb=newBlock(r.b.type==='bullet'?'bullet':'p');
-    r.list.splice(r.idx+1,0,nb); save(); render(); focusBlock(nb.id); }
-  else if(e.key==='Backspace'&&bc.textContent.trim()===''&&!bc.querySelector('.chip')){
+    const isList=r.b.type==='bullet'||r.b.type==='number';
+    if(isList&&bc.textContent.trim()===''){ // empty item: outdent one level, or leave the list at the top level
+      if((r.b.indent||0)>0){ r.b.indent=(r.b.indent||0)-1; save(); render(); focusBlock(r.b.id); return; }
+      r.b.type='p'; r.b.html=''; r.b.indent=0; save(); render(); focusBlock(r.b.id); return; }
+    const nb=newBlock(isList?r.b.type:'p'); if(isList) nb.indent=r.b.indent||0;
+    r.list.splice(r.idx+1,0,nb); save(); render(); focusBlock(nb.id); return; }
+  if(e.key==='Backspace'&&bc.textContent.trim()===''&&!bc.querySelector('.chip')){
+    if((r.b.type==='bullet'||r.b.type==='number')&&(r.b.indent||0)>0){ e.preventDefault(); r.b.indent=(r.b.indent||0)-1; save(); render(); focusBlock(r.b.id,true); return; } // outdent before deleting
     if(r.idx>0||r.parent){ e.preventDefault(); hideSlash(); // don't delete the very first top-level block (nothing to fall back to)
       const prev=r.idx>0?r.list[r.idx-1]:(r.parent||null);
       r.list.splice(r.idx,1); save(); render();
-      if(prev&&prev.id) focusBlock(prev.id,true); } }
-  else if(e.key==='Escape') hideSlash();
+      if(prev&&prev.id) focusBlock(prev.id,true); } return; }
+  if(e.key==='Escape') hideSlash();
 });
 /* slash menu */
 const SLASH_ITEMS=[
-  ['p','¶','Text'],['h1','H1','Heading 1'],['h2','H2','Heading 2'],['h3','H3','Heading 3'],
-  ['bullet','•','Bulleted list'],['toggle','▸','Toggle (collapsible)'],['callout','▢','Callout'],
-  ['table','⊞','Table'],['divider','—','Divider'],['link','🔗','Link to item…'],
+  ['p','¶','Text','paragraph'],['h1','H1','Heading 1','title'],['h2','H2','Heading 2','subtitle'],['h3','H3','Heading 3','subheading'],
+  ['bullet','•','Bulleted list','ul unordered'],['number','1.','Numbered list','ol ordered numbered'],['toggle','▸','Toggle (collapsible)','collapse'],['callout','▢','Callout','note info'],
+  ['table','⊞','Table','grid'],['divider','—','Divider','hr line rule'],['link','🔗','Link to item…','ref mention'],
 ];
-let slashFor=null;
+let slashFor=null, slashItems=[], slashIdx=0;
+function renderSlashSel(){ const m=$('#slashmenu'); if(!m) return; [...m.querySelectorAll('button')].forEach((b,i)=>b.classList.toggle('hl',i===slashIdx)); }
 function maybeSlashMenu(bc,r){
   const txt=bc.textContent;
   if(txt.startsWith('/')){ const q=txt.slice(1).toLowerCase(); slashFor=r.b.id;
-    const items=SLASH_ITEMS.filter(([ty,ic,lb])=>!q||lb.toLowerCase().includes(q));
-    if(!items.length){ hideSlash(); return; }
-    const m=$('#slashmenu'); m.innerHTML=items.map(([ty,ic,lb])=>`<button data-act="slashPick" data-type="${ty}"><span class="ic">${ic}</span>${lb}</button>`).join('');
+    slashItems=SLASH_ITEMS.filter(([ty,ic,lb,al])=>!q||lb.toLowerCase().includes(q)||ty.includes(q)||(al&&al.includes(q)));
+    if(!slashItems.length){ hideSlash(); return; }
+    slashIdx=0;
+    const m=$('#slashmenu'); m.innerHTML=slashItems.map(([ty,ic,lb],i)=>`<button class="${i===0?'hl':''}" data-act="slashPick" data-type="${ty}"><span class="ic">${ic}</span>${lb}</button>`).join('');
     const rect=bc.getBoundingClientRect();
     m.style.left=(rect.left+window.scrollX)+'px'; m.style.top=(rect.bottom+window.scrollY+4)+'px'; m.style.display='block';
   } else hideSlash();
 }
-function hideSlash(){ $('#slashmenu').style.display='none'; slashFor=null; }
+function hideSlash(){ $('#slashmenu').style.display='none'; slashFor=null; slashItems=[]; slashIdx=0; }
 document.addEventListener('click',e=>{ if(!e.target.closest('#slashmenu')&&!e.target.closest('.bc')) hideSlash(); });
-ACTIONS.slashPick=t=>{ const ty=t.dataset.type; const r=slashFor&&findBlock(slashFor); hideSlash(); if(!r) return;
+ACTIONS.slashPick=t=>applySlash(t.dataset.type);
+function applySlash(ty){ const r=slashFor&&findBlock(slashFor); hideSlash(); if(!r) return;
   r.b.html='';
   if(ty==='link'){ linkPicker(ref=>{ const r2=findBlock(r.b.id); if(r2){ r2.b.html+=' '+chipHTML(ref)+'&nbsp;'; save(); render(); focusBlock(r2.b.id,true); } }); save(); render(); return; }
   if(ty==='toggle'){ r.b.type='toggle'; r.b.open=true; r.b.children=r.b.children||[newBlock('p')]; }
@@ -2653,7 +3034,7 @@ ACTIONS.slashPick=t=>{ const ty=t.dataset.type; const r=slashFor&&findBlock(slas
   else if(ty==='divider'){ const nb=newBlock('divider'); r.list.splice(r.idx,0,nb); r.b.type='p'; }
   else r.b.type=ty;
   save(); render(); focusBlock(r.b.id);
-};
+}
 
 /* ================= CSV DATA ROUND-TRIP (contracts & financial data) ================= */
 const CSV_COLS=['type','supplier','supplier_number','contract_number','contract_value','what','start_date','end_date','po_number','po_description','line_number','line_description','wbs','spend_code','gl_code','line_value','invoice_number','invoice_value','invoice_date','invoice_for','notes'];
@@ -2854,8 +3235,8 @@ function xlSheetBuilders(){ const ps=periodList(); return {
     ...fcTopRows().flatMap(row=>[
       [row.label,row.sub||'','',fcSupplier(row.ref),'','','','',row.current,row.actuals,...ps.map(p=>fcRollup(row,p.key)),...ps.map(p=>actualsInPeriod(row.lineIds,p))],
       ...(row.children||[]).map(ch=>['    '+(ch.f.forWhat||'(forecast line)'),'Forecast line',ch.f.forWhat||'',fcSupplier(ch.f.parentRef),ch.sub,fcStatusName(ch.f.statusId),ch.f.startDate||'',ch.f.endDate||'',ch.current,ch.actuals,...ps.map(p=>fcOwn(ch.ref,ch.current,ch.actuals,p.key)),...ps.map(p=>actualsInPeriod(ch.lineIds,p))])])],
-  Actions:()=>{const rows=[['Task','Level','Type','State','Priority','Owner','Tags','Due','Completed','Last actioned','Links','Notes']];
-    walkTasks((t,depth)=>rows.push(['  '.repeat(depth)+(t.name||''),depth,t.type||'task',t.type==='header'?'':stateOf(t.stateId).name,priorityName(t.priorityId),t.owner||'',(t.tagIds||[]).map(id=>(taskTagOf(id)||{}).name).filter(Boolean).join(', '),t.due||'',t.completed||'',t.lastActioned||'',(t.links||[]).map(l=>refLabel(...l.split(':'))).join('; '),t.notes||''])); return rows;},
+  Actions:()=>{const rows=[['Task','Level','Type','State','Priority','Owner','Tags','Start','Due','Completed','Last actioned','Links','Notes']];
+    walkTasks((t,depth)=>rows.push(['  '.repeat(depth)+(t.name||''),depth,t.type||'task',t.type==='header'?'':stateOf(t.stateId).name,priorityName(t.priorityId),t.owner||'',(t.tagIds||[]).map(id=>(taskTagOf(id)||{}).name).filter(Boolean).join(', '),t.start||'',t.due||'',t.completed||'',t.lastActioned||'',(t.links||[]).map(l=>refLabel(...l.split(':'))).join('; '),t.notes||''])); return rows;},
   Calendar:()=>[['Date','End date','Time','Title','Tags','Organiser','Notes','Links'],
     ...[...S.events].sort((a,b)=>a.date.localeCompare(b.date)).map(e=>[e.date,e.endDate||'',e.time||'',e.title,(e.tagIds||[]).map(id=>(tagOf(id)||{}).name).filter(Boolean).join(', '),e.organiser||'',e.notes||'',(e.links||[]).map(l=>refLabel(...l.split(':'))).join('; ')])],
   Links:()=>[['Title','URL','Category','Notes'],...S.links.map(l=>[l.title||'',l.url||'',l.category||'',l.notes||''])],
@@ -2911,9 +3292,10 @@ ACTIONS.exportMD=()=>{
   md+=`\n## Calendar\n\n`+mdTable(['Date','Time','Title','Tags','Organiser','Notes'],
     [...S.events].sort((a,b)=>a.date.localeCompare(b.date)).map(e=>[e.date+(e.endDate?' → '+e.endDate:''),e.time||'',e.title,(e.tagIds||[]).map(id=>(tagOf(id)||{}).name).filter(Boolean).join(', '),e.organiser||'',(e.notes||'').replace(/\n/g,' ')]));
   if(S.links.length) md+=`\n## Links\n\n`+mdTable(['Title','URL','Category','Notes'],S.links.map(l=>[l.title||'',l.url||'',l.category||'',(l.notes||'').replace(/\n/g,' ')]));
-  const bmd=(b,depth)=>{ const ind='  '.repeat(depth); let out='';
+  const bmd=(b,depth)=>{ const ind='  '.repeat(depth+(b.indent||0)); let out='';
     if(b.type==='h1') out=`# ${htmlToText(b.html)}`; else if(b.type==='h2') out=`## ${htmlToText(b.html)}`;
     else if(b.type==='h3') out=`### ${htmlToText(b.html)}`; else if(b.type==='bullet') out=ind+`- ${htmlToText(b.html)}`;
+    else if(b.type==='number') out=ind+`1. ${htmlToText(b.html)}`;
     else if(b.type==='divider') out='---'; else if(b.type==='callout') out=`> ${htmlToText(b.html)}`;
     else if(b.type==='table') out=mdTable((b.rows[0]||[]).map(htmlToText),(b.rows.slice(1)||[]).map(r=>r.map(htmlToText)));
     else if(b.type==='grid') out=mdTable((b.columns||[]).map(c=>c.label),(b.rows||[]).map(gr=>(b.columns||[]).map(c=>gr[c.key]||'')));
@@ -2956,8 +3338,8 @@ function updateFileStatus(){ const el=$('#fileStatus'); if(!el) return;
   if(!curFileName){ el.textContent='⚠ Browser only'; el.classList.add('fs-warn'); el.title='This programme is only in this browser — click to save it to a file'; return; }
   if(fileNeedsPerm){ el.textContent='⚠ Reconnect · '+curFileName; el.classList.add('fs-warn'); el.title='Click and Save once to reconnect “'+curFileName+'” after reloading — it writes back to the SAME file, not a new one'; return; }
   if(fileDirty){ el.textContent='● Unsaved → '+curFileName; el.classList.add('fs-dirty'); el.title='You have changes not yet written to “'+curFileName+'” — click to Save'; return; }
-  el.textContent='✓ '+(S.programme.autosaveFile?'Synced':'Saved')+' · '+curFileName; el.classList.add('fs-ok');
-  el.title=(S.programme.autosaveFile?'Keeping “'+curFileName+'” in sync automatically':'Saved to “'+curFileName+'”')+' — click for options'; }
+  el.innerHTML='✓ Saved · '+esc(curFileName)+(S.programme.autosaveFile?' <span class="fs-auto" title="Auto-sync on — saved automatically after every change">auto</span>':''); el.classList.add('fs-ok');
+  el.title=(S.programme.autosaveFile?'Saved to “'+curFileName+'” and kept in sync automatically after every change':'Saved to “'+curFileName+'” — this file updates when you click Save')+' — click for options'; }
 async function loadFileState(){ curFileName=null; fileDirty=false; fileNeedsPerm=false; fileLinkLost=false; downloadedOnly=false;
   if(fileSupported()){ const h=await idbGet(lsKey);
     if(h){ curFileName=h.name;
@@ -2966,7 +3348,7 @@ async function loadFileState(){ curFileName=null; fileDirty=false; fileNeedsPerm
   updateFileStatus(); }
 const refreshFileLabel=loadFileState; // (kept name for existing callers)
 function markFileDirty(){ if(curFileName&&!fileLinkLost&&!fileNeedsPerm&&!S.programme.autosaveFile){ fileDirty=true; updateFileStatus(); } }
-function markFileSaved(name){ curFileName=name; fileDirty=false; fileNeedsPerm=false; fileLinkLost=false; downloadedOnly=false; updateFileStatus(); }
+function markFileSaved(name){ curFileName=name; fileDirty=false; fileNeedsPerm=false; fileLinkLost=false; downloadedOnly=false; clearTimeout(bSaveTimer); updateFileStatus(); } // cancel any queued debounced save (from recent typing) — otherwise it fires after the write and wrongly re-flags "● Unsaved"
 
 ACTIONS.saveJSON=async()=>{
   const name=slug(S.programme.name)+'.programme.json';
@@ -2988,28 +3370,26 @@ ACTIONS.downloadCopy=()=>{ hideFileMenu(); download(slug(S.programme.name)+'.pro
 /* ---- one compact menu for every file action (replaces the old Save / Save As / Open cluster) ---- */
 function hideFileMenu(){ const m=$('#filemenu'); if(m) m.hidden=true; }
 async function drawFileMenu(){ const el=$('#filemenu'); if(!el) return;
-  if(!fileSupported()){ el.innerHTML=`<div class="fm-head">This browser can’t link a file directly.</div>
+  if(!fileSupported()){ el.innerHTML=`<div class="fm-head">This browser can only download copies.</div>
     <button class="fm-item" data-act="fmSave">💾 Download a copy</button>
-    <button class="fm-item" data-act="fmOpen">📂 Open a file…</button>
-    <div class="fm-note">Everything autosaves to this browser${lastSavedTime?' · '+lastSavedTime:''}. Use Chrome or Edge to save straight to a file you choose.</div>`; return; }
-  const linked=!!curFileName; const auto=!!S.programme.autosaveFile; const onFile=location.protocol==='file:';
-  const head= fileLinkLost?`The link to <b>${esc(curFileName||'your file')}</b> was dropped on reload`
-    : downloadedOnly&&!linked?`Downloaded a copy — <b>not linked</b> to a folder file`
-    : linked?(fileNeedsPerm?`Reconnect “<b>${esc(curFileName)}</b>” — Save once`:(fileDirty?`Changes not yet in “<b>${esc(curFileName)}</b>”`:`Up to date in “<b>${esc(curFileName)}</b>”`))
+    <button class="fm-item" data-act="fmOpen">📂 Open a file…</button>`; return; }
+  const linked=!!curFileName; const auto=!!S.programme.autosaveFile;
+  const head= fileLinkLost?`Link to <b>${esc(curFileName||'your file')}</b> dropped on reload`
+    : downloadedOnly&&!linked?`Downloaded a copy — not linked to a file`
+    : linked?(fileNeedsPerm?`Reconnect <b>${esc(curFileName)}</b>`:(fileDirty?`Unsaved — <b>${esc(curFileName)}</b>`:`Saved to <b>${esc(curFileName)}</b>`))
     : 'Not saved to a file yet';
   const relinkHint=(fileLinkLost||downloadedOnly)?`<button class="fm-item" data-act="fmOpen" style="color:var(--accent);font-weight:600">📂 Open your file to relink →</button>`:'';
   const haveFile=linked&&!fileLinkLost; // there is a real file to write back to (maybe needing one reconnect click)
   const saveButtons= haveFile
-    ? `<button class="fm-item" data-act="fmSave">💾 Save ${fileNeedsPerm?'to reconnect (same file)':'now'}</button>
-       <button class="fm-item" data-act="fmSaveAs">📝 Save As — different file / move…</button>`
-    : `<button class="fm-item" data-act="fmSaveAs">💾 Save to a file… (choose where)</button>`; // no file yet → always a Save As, never a misleading "save now"
+    ? `<button class="fm-item" data-act="fmSave">💾 Save ${fileNeedsPerm?'to reconnect':'now'}</button>
+       <button class="fm-item" data-act="fmSaveAs">📝 Save As…</button>`
+    : `<button class="fm-item" data-act="fmSaveAs">💾 Save to a file…</button>`; // no file yet → always a Save As, never a misleading "save now"
   el.innerHTML=`<div class="fm-head">${head}</div>
     ${relinkHint}
     ${saveButtons}
     <button class="fm-item" data-act="fmOpen">📂 Open a file…</button>
     <button class="fm-item" data-act="downloadCopy">⬇ Download a copy</button>
-    <label class="fm-item"><input type="checkbox" ${auto?'checked':''} onchange="toggleAutosaveFile(this)"> Keep file in sync automatically</label>
-    <div class="fm-note">Also autosaves to this browser${lastSavedTime?' · '+lastSavedTime:''}. The <b>file</b> is your portable copy${onFile?`.<br><b>Heads-up:</b> because you opened this from a double-clicked file, the browser forgets the file link each time you reopen it — you’ll “Open” or “Reconnect” once per session (it always writes back to the <i>same</i> file, never a new one). For a link that sticks automatically, run it from a local address — see the README.`:` — the badge turns amber whenever it’s behind.`}</div>`; }
+    <label class="fm-item"><input type="checkbox" ${auto?'checked':''} onchange="toggleAutosaveFile(this)"> Keep file in sync automatically</label>`; }
 ACTIONS.fileMenu=t=>{ const m=$('#filemenu'); if(!m) return; if(!m.hidden){ m.hidden=true; return; } drawFileMenu(); m.hidden=false; };
 ACTIONS.saveFromInfo=()=>{ closeModal(); ACTIONS.saveJSON(); };
 ACTIONS.fmSave=()=>{ hideFileMenu(); ACTIONS.saveJSON(); };
@@ -3032,44 +3412,16 @@ ACTIONS.relinkFile=async()=>{ // Save As — pick a NEW file, write it, then reb
   }catch(e){ if(e&&e.name==='AbortError') return; } };
 ACTIONS.openJSON=async()=>{
   if(window.showOpenFilePicker){
-    try{ const [h]=await showOpenFilePicker({types:[{description:'Programme file',accept:{'application/json':['.json']}}]});
-      const f=await h.getFile(); const text=await f.text();
-      try{ if(h.requestPermission) await h.requestPermission({mode:'readwrite'}); }catch(e){} // grab write access now, while we still have the click, so saves go back to THIS file
-      importState(JSON.parse(text)); await idbSet(lsKey,h); S.programme.autosaveFile=true; save(); markFileSaved(h.name); return;
-    }catch(e){ if(e&&e.name==='AbortError') return; }
+    let h,obj;
+    try{ [h]=await showOpenFilePicker({types:[{description:'Programme file',accept:{'application/json':['.json']}}]});
+      const f=await h.getFile(); obj=JSON.parse(await f.text());
+    }catch(e){ if(e&&e.name==='AbortError') return; toast('Could not read that file'); return; }
+    try{ if(h.requestPermission) await h.requestPermission({mode:'readwrite'}); }catch(e){} // grab write access now, while we still have the click, so saves go back to THIS file
+    await loadFileIntoProgramme(obj,h); // matches it to its programme, prompts only on a real conflict, never duplicates
+    return;
   }
   $('#filein').click();
 };
-/* ---- manage all programmes and see, at a glance, where each is saved ---- */
-async function saveProgrammeToFile(key){ if(!window.showSaveFilePicker) return false;
-  let data=localStorage.getItem(key); if(!data) return false;
-  try{ const obj=JSON.parse(data); if(obj&&obj.programme){ obj.programme.autosaveFile=true; data=JSON.stringify(obj,null,1); localStorage.setItem(key,data); if(key===lsKey&&S) S.programme.autosaveFile=true; } }catch(e){}
-  try{ let h=await idbGet(key);
-    if(!h){ let nm='programme.json'; try{ nm=slug(JSON.parse(data).programme.name)+'.programme.json'; }catch(e){}
-      h=await showSaveFilePicker({suggestedName:nm,types:[{description:'Programme file',accept:{'application/json':['.json']}}]}); await idbSet(key,h); }
-    const w=await h.createWritable(); await w.write(data); await w.close(); toast('Saved to '+h.name);
-    if(key===lsKey) markFileSaved(h.name);
-    return true;
-  }catch(e){ if(e&&e.name==='AbortError') return false; return false; } }
-ACTIONS.manageProgrammes=async()=>{ const list=listLocal(); const files=await progFiles(list); const canFile=!!window.showSaveFilePicker;
-  const rows=list.map(p=>{ const isCur=p.key===lsKey&&!OVERVIEW; const f=files[p.key];
-    return `<tr ${isCur?'style="background:var(--surface-2)"':''}>
-      <td><b>${esc(p.name)}</b>${isCur?' <span class="badge ok">current</span>':''}</td>
-      <td>${f?('📄 '+esc(f)):'<span class="badge warn" title="Lives only in this browser">browser only</span>'}</td>
-      <td class="small muted nowrap">${p.modified?new Date(p.modified).toLocaleDateString('en-NZ'):''}</td>
-      <td class="nowrap" style="text-align:right">
-        ${isCur?'<span class="muted small">open</span>':`<button class="btn sm" data-act="mgOpen" data-key="${esc(p.key)}">Open</button>`}
-        ${canFile?`<button class="btn sm" data-act="mgSaveFile" data-key="${esc(p.key)}">${f?'Save now':'Save to a file…'}</button>`:''}
-      </td></tr>`; }).join('');
-  modal(`<div class="m-h"><h3>Programmes &amp; where they’re saved</h3></div><div class="m-b">
-    <div class="small muted" style="margin-bottom:10px">Every programme is kept in this browser. Give one a <b>file</b> to have a portable, backup-able copy you own${canFile?'':' (use Chrome or Edge to link a file — this browser can only download copies)'}. “Browser only” means it lives here and nowhere else.</div>
-    <div class="tblwrap"><table class="tbl"><thead><tr><th>Programme</th><th>Saved to</th><th>Changed</th><th></th></tr></thead>
-    <tbody>${rows||'<tr><td colspan="4"><div class="empty">No programmes yet</div></td></tr>'}</tbody></table></div>
-  </div><div class="m-f"><button class="btn primary" data-act="closeModal">Done</button></div>`); };
-ACTIONS.mgOpen=t=>{ closeModal(); openKey(t.dataset.key); };
-ACTIONS.mgSaveFile=async t=>{ const key=t.dataset.key;
-  const ok=await saveProgrammeToFile(key);
-  if(ok){ updateProgSwitch(); ACTIONS.manageProgrammes(); } };
 $('#filein').addEventListener('change',async e=>{
   const f=e.target.files[0]; if(!f) return;
   try{ importState(JSON.parse(await f.text())); }catch(err){ toast('Could not read that file'); }

@@ -1,0 +1,6 @@
+# Test artifacts (Playwright screenshots written to the project root by smoke tests)
+shot*.png
+*.screenshot.png
+
+# OS / editor cruft
+.DS_Store
