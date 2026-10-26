@@ -301,7 +301,8 @@ dialog .m-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;bord
 .blk{position:relative;margin:1px 0;border-radius:6px}
 .blk .bc{outline:none;padding:4px 6px;border-radius:6px;min-height:1.5em;line-height:1.6;transition:background .1s}
 .blk .bc:focus{background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line-2)}
-.blk .bc:empty:before{content:attr(data-ph);color:var(--ink-3)}
+.blk .bc:empty:focus:before{content:attr(data-ph);color:var(--ink-3)}
+#doc > .page-head + .blk .bc:empty:before{content:attr(data-ph);color:var(--ink-3)}
 .blk.t-h1 .bc{font-family:var(--serif);font-size:27px;font-weight:600;margin-top:12px}
 .blk.t-h2 .bc{font-family:var(--serif);font-size:20px;font-weight:600;margin-top:14px}
 .blk.t-h3 .bc{font-size:16px;font-weight:600;margin-top:6px}
@@ -2614,7 +2615,7 @@ function newBlock(type){ const b={id:uid(),type:type||'p',html:''};
   if(type==='table'){ b.rows=[['Column','Column'],['','']]; }
   return b;
 }
-const BLOCK_PH={p:'Type “/” for headings, bullets, toggles, tables, links… (this is a free notes area)',h1:'Heading 1',h2:'Heading 2',h3:'Heading 3',bullet:'List item',number:'List item',callout:'Callout',toggle:'Toggle heading'};
+const BLOCK_PH={p:'Write something, or press “/” for commands',h1:'Heading 1',h2:'Heading 2',h3:'Heading 3',bullet:'List item',number:'List item',callout:'Callout',toggle:'Toggle heading'};
 
 /* ---- Behaviour Change Wheel taxonomy (used by cascading grid dropdowns) ---- */
 const LMH=['Low','Medium','High'];
@@ -2793,7 +2794,7 @@ function blockHTML(b,ord){
 /* render a list of blocks; number "number" blocks per indent level. A block ends numbering only at its own level and deeper, so a parent numbered list keeps counting across nested sub-items. */
 function blocksHTML(list){ const c=[]; return (list||[]).map(b=>{ const L=b.indent||0; if(b.type==='number'){ c[L]=(c[L]||0)+1; c.length=L+1; return blockHTML(b,c[L]); } c.length=L; return blockHTML(b); }).join(''); }
 /* ===== multi-block selection: Shift-click or drag across blocks, then Ctrl/Cmd-C copy, X cut, Delete, Esc ===== */
-let selBlocks=[], selAnchor=null;
+let selBlocks=[], selAnchor=null, dragSel=null;
 function topBlockOf(el){ if(!el) return null; let b=el.closest&&el.closest('.blk[data-blk]'); if(!b) return null;
   while(b.parentElement&&b.parentElement.id!=='doc'){ const up=b.parentElement.closest&&b.parentElement.closest('.blk[data-blk]'); if(!up) break; b=up; }
   return (b.parentElement&&b.parentElement.id==='doc')?b:null; }
@@ -2817,8 +2818,13 @@ document.addEventListener('mousedown',e=>{ const inDoc=e.target.closest&&e.targe
   if((e.metaKey||e.ctrlKey)&&tb){ e.preventDefault(); e.stopPropagation(); const id=tb.dataset.blk;
     selBlocks = selBlocks.includes(id) ? selBlocks.filter(x=>x!==id) : topIds().filter(x=>selBlocks.includes(x)||x===id);
     selAnchor=id; paintSel(); return; }
-  if(tb) selAnchor=tb.dataset.blk; clearSel(); },true);
-document.addEventListener('mouseup',()=>{ setTimeout(()=>{ const s=window.getSelection&&window.getSelection(); if(!s||s.isCollapsed) return;
+  if(tb){ selAnchor=tb.dataset.blk; dragSel={id:tb.dataset.blk,moved:false}; } clearSel(); },true);
+// drag across blocks → block selection (as soon as the pointer enters a different top-level block)
+document.addEventListener('mousemove',e=>{ if(!dragSel||e.buttons!==1) return;
+  const tb=topBlockOf(document.elementFromPoint(e.clientX,e.clientY));
+  if(tb&&tb.dataset.blk!==dragSel.id){ dragSel.moved=true; selectRange(dragSel.id,tb.dataset.blk); } });
+document.addEventListener('mouseup',()=>{ dragSel=null;
+  setTimeout(()=>{ const s=window.getSelection&&window.getSelection(); if(!s||s.isCollapsed) return;
   const ab=topBlockOf(s.anchorNode&&(s.anchorNode.nodeType===1?s.anchorNode:s.anchorNode.parentElement));
   const fb=topBlockOf(s.focusNode&&(s.focusNode.nodeType===1?s.focusNode:s.focusNode.parentElement));
   if(ab&&fb&&ab!==fb) selectRange(ab.dataset.blk,fb.dataset.blk); },0); });
@@ -2906,8 +2912,16 @@ function linksDBHTML(){
 ACTIONS.addLink=()=>{ S.links.push({id:uid(),title:'',url:'',category:'',notes:''}); save(); render();
   setTimeout(()=>{ const els=$$('input[data-bind^="links."][data-bind$=".title"]'); if(els.length) els[els.length-1].focus(); },40); };
 ACTIONS.delLink=t=>{ const l=byId(S.links,t.dataset.id); trashPush('Link',(l&&(l.title||l.url))||'Link',{links:[l]}); S.links=S.links.filter(l=>l.id!==t.dataset.id); save(); render(); };
-function focusBlock(id,toEnd){ setTimeout(()=>{ const el=document.querySelector(`.bc[data-bid="${id}"]`); if(!el) return; el.focus();
-  if(toEnd){ const r=document.createRange(); r.selectNodeContents(el); r.collapse(false); const s=getSelection(); s.removeAllRanges(); s.addRange(r); } },40); }
+function focusBlock(id,toEnd){ setTimeout(()=>caretTo(id,toEnd),40); }
+function caretTo(id,toEnd){ const el=document.querySelector(`.bc[data-bid="${id}"]`); if(!el) return; el.focus();
+  try{ const r=document.createRange(); r.selectNodeContents(el); r.collapse(!toEnd); const s=getSelection(); s.removeAllRanges(); s.addRange(r); }catch(e){} }
+function allBcIds(){ return [...document.querySelectorAll('#doc .bc[data-bid]')].map(e=>e.dataset.bid); } // every editable block, in document order (incl. nested)
+function siblingBc(id,dir){ const ids=allBcIds(); const i=ids.indexOf(id); if(i<0) return null; const j=i+dir; return (j>=0&&j<ids.length)?ids[j]:null; }
+function caretAtEdge(bc,atEnd){ const s=getSelection(); if(!s||!s.rangeCount) return true; const r=s.getRangeAt(0); if(!r.collapsed) return false;
+  const p=document.createRange(); p.selectNodeContents(bc); if(atEnd) p.setStart(r.endContainer,r.endOffset); else p.setEnd(r.startContainer,r.startOffset); return p.toString().length===0; }
+function caretLine(bc){ try{ const s=getSelection(); if(!s||!s.rangeCount) return {top:true,bottom:true}; const r=s.getRangeAt(0).cloneRange(); r.collapse(true);
+  const rects=r.getClientRects(), cr=rects&&rects.length?rects[0]:null; if(!cr) return {top:true,bottom:true}; const b=bc.getBoundingClientRect(), lh=parseFloat(getComputedStyle(bc).lineHeight)||20;
+  return {top:(cr.top-b.top)<lh*0.75, bottom:(b.bottom-cr.bottom)<lh*0.75}; }catch(e){ return {top:true,bottom:true}; } }
 
 ACTIONS.addBlockEnd=()=>{ const b=newBlock('p'); curPage().blocks.push(b); save(); render(); focusBlock(b.id); };
 ACTIONS.addChildBlock=t=>{ const r=findBlock(t.dataset.id); if(!r) return; r.b.children=r.b.children||[]; const b=newBlock('p'); r.b.children.push(b); save(); render(); focusBlock(b.id); };
@@ -2953,8 +2967,18 @@ document.addEventListener('input',e=>{
   const r=findBlock(bc.dataset.bid); if(!r) return;
   r.b.html=bc.innerHTML;
   clearTimeout(bSaveTimer); bSaveTimer=setTimeout(save,400);
+  if(maybeMdConvert(bc,r)) return;
   maybeSlashMenu(bc,r);
 });
+// typing a markdown shortcut at the start of a plain block converts it: "- "/"* "/"• "→bullet, "1. "→numbered, "#…"→heading, "> "→callout
+function maybeMdConvert(bc,r){ if(r.b.type!=='p') return false; const t=bc.textContent.replace(/ /g,' ');
+  let ty=null;
+  if(t==='- '||t==='* '||t==='• ') ty='bullet';
+  else if(/^\d+\.\s$/.test(t)) ty='number';
+  else if(t==='# ') ty='h1'; else if(t==='## ') ty='h2'; else if(t==='### ') ty='h3';
+  else if(t==='> ') ty='callout';
+  if(!ty) return false;
+  hideSlash(); r.b.type=ty; r.b.html=''; save(); render(); focusBlock(r.b.id); return true; }
 /* grid select cells: update + clear dependents + re-render for cascading options */
 document.addEventListener('change',e=>{
   const gs=e.target.closest&&e.target.closest('select[data-grid]'); if(!gs) return;
@@ -2983,19 +3007,33 @@ document.addEventListener('keydown',e=>{
     if(e.key==='Enter'||e.key==='Tab'){ e.preventDefault(); applySlash(slashItems[slashIdx][0]); return; }
     if(e.key==='Escape'){ e.preventDefault(); hideSlash(); return; }
   }
+  // arrow keys hop between blocks at the top/bottom line (up/down) or at the text edges (left/right)
+  if((e.key==='ArrowUp'||e.key==='ArrowDown')&&!e.shiftKey&&!e.metaKey&&!e.ctrlKey&&!e.altKey){ const ln=caretLine(bc);
+    if(e.key==='ArrowUp'&&ln.top){ const p=siblingBc(r.b.id,-1); if(p){ e.preventDefault(); caretTo(p,true); return; } }
+    if(e.key==='ArrowDown'&&ln.bottom){ const n=siblingBc(r.b.id,1); if(n){ e.preventDefault(); caretTo(n,false); return; } } }
+  if((e.key==='ArrowLeft'||e.key==='ArrowRight')&&!e.shiftKey&&!e.metaKey&&!e.ctrlKey&&!e.altKey){
+    if(e.key==='ArrowLeft'&&caretAtEdge(bc,false)){ const p=siblingBc(r.b.id,-1); if(p){ e.preventDefault(); caretTo(p,true); return; } }
+    if(e.key==='ArrowRight'&&caretAtEdge(bc,true)){ const n=siblingBc(r.b.id,1); if(n){ e.preventDefault(); caretTo(n,false); return; } } }
   if(e.key==='Tab'&&(r.b.type==='bullet'||r.b.type==='number')){ e.preventDefault(); r.b.html=bc.innerHTML; // indent / un-indent list items for nesting
     const cur=r.b.indent||0;
     if(e.shiftKey) r.b.indent=Math.max(0,cur-1);
     else { const prev=r.idx>0?r.list[r.idx-1]:null; const max=prev?((prev.indent||0)+1):0; r.b.indent=Math.min(max,cur+1); } // can't go deeper than one level below the item above
     save(); render(); focusBlock(r.b.id,true); return; }
   if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); hideSlash();
-    r.b.html=bc.innerHTML;
     const isList=r.b.type==='bullet'||r.b.type==='number';
-    if(isList&&bc.textContent.trim()===''){ // empty item: outdent one level, or leave the list at the top level
+    if(isList&&bc.textContent.trim()===''){ r.b.html=bc.innerHTML; // empty item: outdent one level, or leave the list at the top level
       if((r.b.indent||0)>0){ r.b.indent=(r.b.indent||0)-1; save(); render(); focusBlock(r.b.id); return; }
       r.b.type='p'; r.b.html=''; r.b.indent=0; save(); render(); focusBlock(r.b.id); return; }
-    const nb=newBlock(isList?r.b.type:'p'); if(isList) nb.indent=r.b.indent||0;
-    r.list.splice(r.idx+1,0,nb); save(); render(); focusBlock(nb.id); return; }
+    // split at the caret: text before the caret stays, text after it moves into the new block
+    let beforeHtml=bc.innerHTML, afterHtml='';
+    try{ const sel=getSelection(); if(sel&&sel.rangeCount){ const rg=sel.getRangeAt(0);
+      const aft=document.createRange(); aft.selectNodeContents(bc); aft.setStart(rg.endContainer,rg.endOffset);
+      const ta=document.createElement('div'); ta.appendChild(aft.cloneContents()); afterHtml=ta.innerHTML;
+      const bef=document.createRange(); bef.selectNodeContents(bc); bef.setEnd(rg.startContainer,rg.startOffset);
+      const tb=document.createElement('div'); tb.appendChild(bef.cloneContents()); beforeHtml=tb.innerHTML; } }catch(_){}
+    r.b.html=beforeHtml;
+    const nb=newBlock(isList?r.b.type:'p'); if(isList) nb.indent=r.b.indent||0; nb.html=afterHtml;
+    r.list.splice(r.idx+1,0,nb); save(); render(); focusBlock(nb.id,false); return; }
   if(e.key==='Backspace'&&bc.textContent.trim()===''&&!bc.querySelector('.chip')){
     if((r.b.type==='bullet'||r.b.type==='number')&&(r.b.indent||0)>0){ e.preventDefault(); r.b.indent=(r.b.indent||0)-1; save(); render(); focusBlock(r.b.id,true); return; } // outdent before deleting
     if(r.idx>0||r.parent){ e.preventDefault(); hideSlash(); // don't delete the very first top-level block (nothing to fall back to)
